@@ -1,0 +1,13 @@
+{
+  "name": "jarvis-core",
+  "version": "1.0.0",
+  "description": "Jarvis Personal AI Assistant",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "test": "node --experimental-strip-types tests/run_all.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
