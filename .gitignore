@@ -1,0 +1,23 @@
+# Node & Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Jarvis Runtime State & Private Data
+.jarvis_data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment & Credentials
+.env
+.env.*
+!.env.example
+*.local.json
+
+# Test data & Scratch
+.test_data*
+.test_acceptance/
+scratch/
