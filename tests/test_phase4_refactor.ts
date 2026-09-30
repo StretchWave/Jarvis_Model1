@@ -107,6 +107,12 @@ async function runPhase4RefactorTests() {
     } else if (req.url === `/api/session/${targetSession}` && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ id: targetSession, title: "Test Session" }));
+    } else if (req.url?.includes("/model") && req.method === "POST") {
+      res.writeHead(204);
+      res.end();
+    } else if (req.url === "/api/model") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify([{ providerID: "opencode", id: "mimo-v2.6-flash-free" }]));
     } else if (req.url?.startsWith(`/api/session/${targetSession}/prompt`)) {
       // Simulate tool progress event over SSE while prompt is being processed
       setTimeout(() => {
@@ -124,6 +130,10 @@ async function runPhase4RefactorTests() {
       }, 100);
 
       setTimeout(() => {
+        if (sseClientRes) {
+          sseClientRes.write("event: message\n");
+          sseClientRes.write("data: " + JSON.stringify({ type: "session.execution.succeeded", sessionId: targetSession }) + "\n\n");
+        }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
       }, 200);

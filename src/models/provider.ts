@@ -11,7 +11,9 @@
 
 import { getSystemPrompt } from "../personality.ts";
 import { Logger } from "../logger.ts";
-import { OpenCodeClient } from "../opencode_client.ts";
+import { OpenCodeClient, type OpenCodeModelRef, type OpenCodeStreamEvent } from "../opencode_client.ts";
+import { type OpenCodeModelProfile } from "../config.ts";
+import { type SessionManager } from "../session_manager.ts";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -20,6 +22,8 @@ export interface ChatMessage {
 
 export interface ChatInput {
   messages: ChatMessage[];
+  sessionId?: string;
+  projectId?: string;
   temperature?: number;
   maxTokens?: number;
 }
@@ -386,6 +390,123 @@ export class OpenCodeProvider implements ModelProvider {
       yield { type: "done", fullText: replyText };
     } catch (err: any) {
       yield { type: "error", error: err.message };
+    }
+  }
+}
+
+export interface OpenCodeModelProviderOptions {
+  client: OpenCodeClient;
+  sessionMgr?: SessionManager;
+  modelProfile: OpenCodeModelProfile;
+  name?: string;
+}
+
+/**
+ * OpenCode Unified Model Provider.
+ * Serves as the primary LLM executor for JARVIS via the local OpenCode daemon.
+ * Supports configurable model profiles and real-time SSE token streaming.
+ */
+export class OpenCodeModelProvider implements ModelProvider {
+  public readonly name: string;
+  private client: OpenCodeClient;
+  private sessionMgr?: SessionManager;
+  private modelProfile: OpenCodeModelProfile;
+  private logger: Logger;
+
+  constructor(options: OpenCodeModelProviderOptions, logger: Logger) {
+    this.client = options.client;
+    this.sessionMgr = options.sessionMgr;
+    this.modelProfile = options.modelProfile;
+    this.name = options.name || `OpenCode(${this.modelProfile.providerID}/${this.modelProfile.modelID})`;
+    this.logger = logger.forComponent("OpenCodeModelProvider");
+  }
+
+  public async health(): Promise<boolean> {
+    const h = await this.client.health();
+    return h.ok;
+  }
+
+  public async *chat(input: ChatInput, signal?: AbortSignal): AsyncIterable<ChatEvent> {
+    const health = await this.client.health();
+    if (!health.ok) {
+      yield {
+        type: "error",
+        error: `OpenCode daemon unreachable: ${health.error || "Cannot connect to OpenCode"}`,
+      };
+      return;
+    }
+
+    let ocSessionId: string;
+    let shouldCleanup = false;
+
+    if (this.sessionMgr) {
+      try {
+        ocSessionId = await this.sessionMgr.getOpenCodeSessionForContext(input.sessionId, input.projectId);
+      } catch (err: any) {
+        yield { type: "error", error: `Failed to acquire OpenCode session: ${err.message}` };
+        return;
+      }
+    } else {
+      try {
+        const ses = await this.client.createSession({
+          title: "Jarvis OpenCode Session",
+          model: {
+            providerID: this.modelProfile.providerID,
+            id: this.modelProfile.modelID,
+            variant: this.modelProfile.variant,
+          },
+        });
+        ocSessionId = ses.id;
+        shouldCleanup = true;
+      } catch (err: any) {
+        yield { type: "error", error: `Failed to create OpenCode session: ${err.message}` };
+        return;
+      }
+    }
+
+    const lastUserMsg = [...input.messages].reverse().find(m => m.role === "user");
+    let promptText = lastUserMsg?.content || "";
+    if (!promptText.trim()) {
+      yield { type: "done", fullText: "" };
+      return;
+    }
+
+    // If this session has no prior turns, include system prompt context
+    try {
+      const existingMsgs = await this.client.getMessages(ocSessionId);
+      if (existingMsgs.length === 0) {
+        const sysMsg = input.messages.find(m => m.role === "system");
+        if (sysMsg && sysMsg.content) {
+          promptText = `[Context: ${sysMsg.content.trim()}]\n\n${promptText}`;
+        }
+      }
+    } catch {
+      // Non-critical check, continue with promptText
+    }
+
+    try {
+      for await (const ev of this.client.executePromptStream(ocSessionId, promptText, {
+        model: {
+          providerID: this.modelProfile.providerID,
+          id: this.modelProfile.modelID,
+          variant: this.modelProfile.variant || "default",
+        },
+        signal,
+      })) {
+        if (ev.type === "token") {
+          yield { type: "token", text: ev.text };
+        } else if (ev.type === "done") {
+          yield { type: "done", fullText: ev.fullText };
+        } else if (ev.type === "error") {
+          yield { type: "error", error: ev.error };
+        }
+      }
+    } catch (err: any) {
+      yield { type: "error", error: `OpenCode execution failed: ${err.message}` };
+    } finally {
+      if (shouldCleanup) {
+        this.client.deleteSession(ocSessionId).catch(() => {});
+      }
     }
   }
 }

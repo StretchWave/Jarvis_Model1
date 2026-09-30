@@ -26,6 +26,7 @@ const suites = [
   "tests/test_phase8_refactor.ts",
   "tests/test_phase9_refactor.ts",
   "tests/test_final_acceptance.ts",
+  "tests/test_opencode_gateway.ts",
 ];
 
 async function runAll() {
@@ -34,12 +35,16 @@ async function runAll() {
   console.log("=================================================================\n");
 
   let totalFailed = 0;
+  let opencodeTested = false;
 
   for (const suite of suites) {
     console.log(`\n>>> Executing ${suite}...`);
     try {
       const { stdout } = await execAsync(`node --experimental-strip-types ${suite}`);
       console.log(stdout.trim());
+      if (suite.includes("opencode_gateway") && stdout.includes("OPENCODE INTEGRATION TESTS PASSED")) {
+        opencodeTested = true;
+      }
     } catch (err: any) {
       console.error(`FAILED: ${suite}`);
       console.error(err.stdout || err.stderr || err.message);
@@ -49,7 +54,13 @@ async function runAll() {
 
   console.log("\n=================================================================");
   if (totalFailed === 0) {
-    console.log("  ALL SUITES PASSED! JARVIS IS FULLY OPERATIONAL AND VERIFIED.   ");
+    console.log("  UNIT TESTS PASSED");
+    console.log("  MOCK ACCEPTANCE TESTS PASSED");
+    if (opencodeTested) {
+      console.log("  OPENCODE INTEGRATION TESTS PASSED: Live gateway verified.");
+    } else {
+      console.log("  OPENCODE INTEGRATION TESTS SKIPPED: daemon unavailable or not tested.");
+    }
   } else {
     console.error(`  ${totalFailed} SUITE(S) FAILED.`);
     process.exit(1);

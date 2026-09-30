@@ -14,6 +14,7 @@ import { OpenCodeClient } from "../opencode_client.ts";
 import { formatContextPrompt } from "../personality.ts";
 import { Logger } from "../logger.ts";
 import { extractAssistantText } from "../models/provider.ts";
+import { type OpenCodeModelProfile } from "../config.ts";
 
 export type AgentEvent =
   | { type: "progress"; message: string }
@@ -27,12 +28,24 @@ export class AgentDispatcher {
   private memoryMgr: MemoryManager;
   private client: OpenCodeClient;
   private logger: Logger;
+  private agentModelProfile?: OpenCodeModelProfile;
 
-  constructor(sessionMgr: SessionManager, memoryMgr: MemoryManager, client: OpenCodeClient, logger: Logger) {
+  constructor(
+    sessionMgr: SessionManager,
+    memoryMgr: MemoryManager,
+    client: OpenCodeClient,
+    logger: Logger,
+    agentModelProfile?: OpenCodeModelProfile
+  ) {
     this.sessionMgr = sessionMgr;
     this.memoryMgr = memoryMgr;
     this.client = client;
     this.logger = logger.forComponent("AgentDispatcher");
+    this.agentModelProfile = agentModelProfile || {
+      providerID: "opencode",
+      modelID: "mimo-v2.6-flash-free",
+      variant: "default",
+    };
   }
 
   /**
@@ -86,7 +99,7 @@ export class AgentDispatcher {
   }
 
   /**
-   * Execute an AGENT task through the paired OpenCode session with live progress streaming.
+   * Execute an AGENT task through the paired OpenCode session with live genuine progress & token streaming.
    */
   public async *executeTask(
     userPrompt: string,
@@ -97,7 +110,7 @@ export class AgentDispatcher {
     this.logger.info(`Starting Agent task in session ${jarvisSessionId}: "${userPrompt.substring(0, 60)}..."`);
     yield { type: "progress", message: "Connecting to OpenCode engine..." };
 
-    // 1. Ensure active OpenCode session
+    // 1. Ensure active OpenCode session (reuse dedicated task/project session)
     let ocSessionId: string;
     try {
       ocSessionId = await this.sessionMgr.ensureOpenCodeSession(jarvisSessionId);
@@ -126,77 +139,64 @@ export class AgentDispatcher {
 
     const packagedPrompt = `${contextHeader}\n\nTask:\n${userPrompt}`;
 
-    yield { type: "progress", message: "Inspecting task requirements..." };
+    yield { type: "progress", message: "Analyzing task requirements with OpenCode Agent..." };
 
-    // 3. Set up SSE event listener
-    const pendingEvents: AgentEvent[] = [];
-    let unsubscribeSSE: (() => void) | null = null;
-
+    // 3. Genuine real-time streaming via OpenCode executePromptStream
+    let accumulatedText = "";
     try {
-      unsubscribeSSE = await this.client.subscribeEvents((rawEvent) => {
-        const translated = this.translateEvent(rawEvent, ocSessionId);
-        if (translated) {
-          pendingEvents.push(translated);
+      const modelRef = this.agentModelProfile
+        ? {
+            providerID: this.agentModelProfile.providerID,
+            id: this.agentModelProfile.modelID,
+            variant: this.agentModelProfile.variant || "default",
+          }
+        : undefined;
+
+      for await (const ev of this.client.executePromptStream(ocSessionId, packagedPrompt, {
+        model: modelRef,
+        signal,
+      })) {
+        if (ev.type === "progress") {
+          yield { type: "progress", message: ev.message };
+        } else if (ev.type === "tool_activity") {
+          const translated = this.translateEvent({ event: "tool_call", data: { tool: ev.tool } }, ocSessionId);
+          if (translated && translated.type === "progress") {
+            yield translated;
+          }
+          yield { type: "tool_activity", tool: ev.tool, status: ev.status };
+        } else if (ev.type === "token") {
+          accumulatedText += ev.text;
+          yield { type: "token", text: ev.text };
+        } else if (ev.type === "done") {
+          yield { type: "tool_activity", tool: "OpenCode Engine", status: "completed" };
+          const finalAns = ev.fullText || accumulatedText;
+          yield { type: "done", fullText: finalAns };
+          return;
+        } else if (ev.type === "error") {
+          yield { type: "error", error: ev.error };
+          return;
         }
-      }, signal);
-    } catch (err: any) {
-      this.logger.debug("SSE subscription skipped:", { error: err.message });
-    }
-
-    let completedText = "";
-
-    try {
-      // 4. Dispatch prompt asynchronously
-      const promptPromise = this.client.sendPrompt(ocSessionId, packagedPrompt);
-
-      // Default safe progress milestones while in-flight
-      yield { type: "progress", message: "Analyzing project files and code..." };
-
-      // Poll pending SSE events while awaiting prompt completion
-      const checkIntervalMs = 50;
-      let promptDone = false;
-      promptPromise.then(() => { promptDone = true; }).catch(() => { promptDone = true; });
-
-      while (!promptDone) {
-        if (signal?.aborted) return;
-        while (pendingEvents.length > 0) {
-          const nextEv = pendingEvents.shift()!;
-          yield nextEv;
-        }
-        await new Promise((r) => setTimeout(r, checkIntervalMs));
       }
 
-      // Await promptPromise resolution
-      await promptPromise;
-
-      // Flush remaining SSE events
-      while (pendingEvents.length > 0) {
-        yield pendingEvents.shift()!;
-      }
-
+      // If stream ended without explicit done event but accumulated text exists
       yield { type: "tool_activity", tool: "OpenCode Engine", status: "completed" };
-
-      // 5. Retrieve verified session messages and extract genuine assistant response
-      const messages = await this.client.getMessages(ocSessionId);
-      completedText = extractAssistantText(messages);
-
-      // 6. Stream the response tokens smoothly
-      const words = completedText.split(" ");
-      for (let i = 0; i < words.length; i++) {
-        if (signal?.aborted) return;
-        const part = (i === 0 ? "" : " ") + words[i];
-        yield { type: "token", text: part };
-        await new Promise((r) => setTimeout(r, 10));
+      if (accumulatedText) {
+        yield { type: "done", fullText: accumulatedText };
+        return;
       }
 
-      yield { type: "done", fullText: completedText };
+      // Fallback: check messages if SSE was completely silent
+      const messages = await this.client.getMessages(ocSessionId);
+      const fallbackText = extractAssistantText(messages);
+      if (fallbackText) {
+        yield { type: "token", text: fallbackText };
+        yield { type: "done", fullText: fallbackText };
+      } else {
+        yield { type: "done", fullText: "Task processing completed." };
+      }
     } catch (err: any) {
       this.logger.error("Agent execution error:", { error: err.message });
       yield { type: "error", error: `Agent execution failed: ${err.message}` };
-    } finally {
-      if (unsubscribeSSE) {
-        unsubscribeSSE();
-      }
     }
   }
 }

@@ -137,6 +137,16 @@ export class SessionManager {
   }
 
   /**
+   * Resolve and ensure the mapped OpenCode session ID for a logical Jarvis session or general context.
+   */
+  public async getOpenCodeSessionForContext(sessionId?: string, projectId?: string): Promise<string> {
+    const jarvisSession = sessionId
+      ? this.db.getSession(sessionId) || (await this.getOrCreateActiveSession("general", projectId))
+      : await this.getOrCreateActiveSession("general", projectId);
+    return await this.ensureOpenCodeSession(jarvisSession.id);
+  }
+
+  /**
    * Archive a temporary task or completed session.
    */
   public archiveSession(sessionId: string): void {

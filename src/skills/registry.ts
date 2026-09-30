@@ -30,7 +30,7 @@ export class SkillRegistry {
     this.registerSkill(mediaSkill);
     this.registerSkill(researchSkill);
 
-    // Extension stubs for GitHub, Unreal, Spotify
+    // Extension skills: Real git status and explicit NOT_IMPLEMENTED status for unconfigured integrations
     this.registerSkill({
       id: "github",
       name: "GitHub Developer Integration",
@@ -41,7 +41,25 @@ export class SkillRegistry {
           name: "Git Status",
           description: "Inspect working tree modifications",
           permission: "SAFE",
-          execute: async () => ({ success: true, message: "On branch master. Working tree clean." }),
+          execute: async () => {
+            try {
+              const { execSync } = await import("node:child_process");
+              const output = execSync("git status --short", {
+                encoding: "utf-8",
+                timeout: 5000,
+                stdio: ["pipe", "pipe", "pipe"],
+              }).trim();
+              if (!output) {
+                return { success: true, message: "Working tree clean. No uncommitted modifications." };
+              }
+              return { success: true, message: `Git Status:\n${output}` };
+            } catch (err: any) {
+              return {
+                success: false,
+                message: `Git status unavailable: ${err.message || "Not a git repository or git not found"}`,
+              };
+            }
+          },
         },
       },
     });
@@ -56,7 +74,10 @@ export class SkillRegistry {
           name: "Inspect Blueprint",
           description: "Inspect Blueprint node logic and animation state machines",
           permission: "SAFE",
-          execute: async () => ({ success: true, message: "Animation state machine verified." }),
+          execute: async () => ({
+            success: false,
+            message: "NOT_IMPLEMENTED: Unreal Engine integration bridge is not configured or connected in this environment.",
+          }),
         },
       },
     });
@@ -71,7 +92,10 @@ export class SkillRegistry {
           name: "Playback Status",
           description: "Inspect currently playing track and playlist",
           permission: "SAFE",
-          execute: async () => ({ success: true, message: "No active track playing." }),
+          execute: async () => ({
+            success: false,
+            message: "NOT_IMPLEMENTED: Spotify integration is not configured. No active player connector or token available.",
+          }),
         },
       },
     });

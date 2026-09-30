@@ -202,6 +202,9 @@ export class Router {
       "inspect repo",
       "analyze repository",
       "analyze this repo",
+      "analyze workspace",
+      "analyze this workspace",
+      "inspect workspace",
       "debug this",
       "find the bug",
       "fix the bug",
@@ -218,6 +221,8 @@ export class Router {
       "implement",
       "pull request",
       "code review",
+      "code audit",
+      "audit code",
     ];
 
     for (const kw of codingKeywords) {

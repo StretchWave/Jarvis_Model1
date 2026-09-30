@@ -47,16 +47,21 @@ async function runPhase7() {
 
   // 1. Setup Project & Context
   console.log("▶ Step 1: Project & Context Setup");
+  const mockReppDir = path.join(testDataDir, "REPP");
+  fs.mkdirSync(path.join(mockReppDir, "Content"), { recursive: true });
+  fs.writeFileSync(path.join(mockReppDir, "REPP.uproject"), JSON.stringify({ FileVersion: 3 }));
+  fs.writeFileSync(path.join(mockReppDir, "Content", "ABP_FP_Weapon.txt"), "BlendSpace 1D RootMotion: Enabled");
+
   memoryMgr.setProject({
     id: "repp",
     name: "REPP Game Project",
-    path: "C:\\Projects\\REPP",
+    path: mockReppDir,
     description: "Tactical shooter in Unreal Engine",
   });
   memoryMgr.remember({
     category: "project",
     key: "Animation State",
-    content: "Weapon animation uses blend spaces and root motion",
+    content: "Weapon animation uses blend spaces and root motion in " + mockReppDir,
     importance: 5,
     projectId: "repp",
   });
@@ -80,7 +85,7 @@ async function runPhase7() {
   let finalResult = "";
 
   for await (const ev of dispatcher.executeTask(
-    "Inspect the weapon animation state and confirm the blend spaces settings.",
+    `Inspect the weapon animation state in ${mockReppDir} and confirm the blend spaces settings.`,
     session.id,
     "repp"
   )) {

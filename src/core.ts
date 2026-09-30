@@ -19,7 +19,7 @@ import { PermissionManager, type PermissionCheckResult } from "./permissions.ts"
 import { DirectTools } from "./tools/direct_tools.ts";
 import { WebSearchEngine, type SearchResult } from "./search.ts";
 import { type ModelProvider } from "./models/provider.ts";
-import { createFastModelProvider } from "./models/factory.ts";
+import { createModelExecutor } from "./models/factory.ts";
 import { AgentDispatcher, type AgentEvent } from "./agent/agent_dispatcher.ts";
 import { VoiceService } from "./voice/voice_service.ts";
 import { ConversationContextManager } from "./context/conversation_context.ts";
@@ -72,7 +72,7 @@ export class JarvisCore {
     this.contextMgr = new ConversationContextManager(this.db, this.logger);
     this.skills = new SkillRegistry(this.logger);
     this.inspector = new RunInspector(this.db, this.logger);
-    this.agentDispatcher = new AgentDispatcher(this.sessionMgr, this.memoryMgr, this.opencode, this.logger);
+    this.agentDispatcher = new AgentDispatcher(this.sessionMgr, this.memoryMgr, this.opencode, this.logger, this.config.models.agent);
     this.voice = new VoiceService(this.logger);
     this.artifacts = new ArtifactManager(this.db, this.logger, this.config.artifacts?.storageDir);
     this.pulse = new ProactivePulse(this.db, this.opencode, this.logger, {
@@ -80,8 +80,14 @@ export class JarvisCore {
       intervalMs: this.config.proactivePulse?.intervalMs,
     });
 
-    // Initialize Fast Model Provider via unified factory
-    this.fastModel = createFastModelProvider(this.config.fastModel, this.logger);
+    // Initialize unified OpenCode Model Executor
+    this.fastModel = createModelExecutor({
+      config: this.config,
+      client: this.opencode,
+      sessionMgr: this.sessionMgr,
+      profileType: "fast",
+      logger: this.logger,
+    });
   }
 
   public async initialize(): Promise<void> {
@@ -89,6 +95,30 @@ export class JarvisCore {
     const ocHealth = await this.opencode.health();
     if (ocHealth.ok) {
       this.logger.info(`Connected to OpenCode daemon at ${ocHealth.url} (version: ${ocHealth.version}, pid: ${ocHealth.pid})`);
+
+      // Validate configured OpenCode model profiles
+      try {
+        const available = await this.opencode.listModels();
+        const fastTarget = `${this.config.models.fast.providerID}/${this.config.models.fast.modelID}`;
+        const agentTarget = `${this.config.models.agent.providerID}/${this.config.models.agent.modelID}`;
+
+        const hasFast = available.some(m => `${m.providerID}/${m.id}` === fastTarget || m.id === this.config.models.fast.modelID);
+        const hasAgent = available.some(m => `${m.providerID}/${m.id}` === agentTarget || m.id === this.config.models.agent.modelID);
+
+        if (hasFast) {
+          this.logger.info(`Verified FAST model profile: ${fastTarget}`);
+        } else {
+          this.logger.warn(`Configured FAST model '${fastTarget}' not found in OpenCode catalog (${available.length} models available).`);
+        }
+
+        if (hasAgent) {
+          this.logger.info(`Verified AGENT model profile: ${agentTarget}`);
+        } else {
+          this.logger.warn(`Configured AGENT model '${agentTarget}' not found in OpenCode catalog.`);
+        }
+      } catch (err: any) {
+        this.logger.warn("OpenCode model catalog check failed:", { error: err.message });
+      }
     } else {
       this.logger.warn(`OpenCode daemon not currently connected: ${ocHealth.error}`);
     }
@@ -236,7 +266,11 @@ export class JarvisCore {
         activeProject: projectId || session.project_id,
       });
 
-      for await (const ev of this.fastModel.chat({ messages: chatMessages }, signal)) {
+      for await (const ev of this.fastModel.chat({
+        messages: chatMessages,
+        sessionId: session.id,
+        projectId: projectId || session.project_id,
+      }, signal)) {
         if (ev.type === "token" && ev.text) {
           fullText += ev.text;
           yield { type: "token", text: ev.text };

@@ -26,6 +26,41 @@ export interface OpenCodeHealth {
   error?: string;
 }
 
+export interface OpenCodeModelRef {
+  providerID: string;
+  id: string;
+  variant?: string;
+}
+
+export interface OpenCodeModelInfo {
+  id: string;
+  modelID: string;
+  providerID: string;
+  name: string;
+  family?: string;
+  capabilities?: {
+    tools?: boolean;
+    input?: string[];
+    output?: string[];
+  };
+}
+
+export interface SendMessageOptions {
+  model?: OpenCodeModelRef;
+  agent?: string;
+  metadata?: Record<string, any>;
+  files?: any[];
+  skills?: any[];
+  resume?: boolean;
+}
+
+export type OpenCodeStreamEvent =
+  | { type: "token"; text: string }
+  | { type: "progress"; message: string }
+  | { type: "tool_activity"; tool: string; status: "started" | "running" | "completed" }
+  | { type: "done"; fullText: string }
+  | { type: "error"; error: string };
+
 export class OpenCodeClient {
   private serviceFile: string;
   private logger: Logger;
@@ -125,15 +160,83 @@ export class OpenCodeClient {
   }
 
   /**
-   * Create a new session in OpenCode.
+   * List available models configured in OpenCode.
    */
-  public async createSession(options?: { title?: string; agent?: string }): Promise<any> {
+  public async listModels(): Promise<OpenCodeModelInfo[]> {
+    if (!this.serviceInfo) this.discoverService();
+    if (!this.serviceInfo) throw new Error("OpenCode service not available");
+
+    const resp = await fetch(`${this.serviceInfo.url}/api/model`, {
+      method: "GET",
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Failed to list OpenCode models: HTTP ${resp.status}`);
+    }
+
+    const json = (await resp.json()) as any;
+    const items = Array.isArray(json) ? json : (json.data || []);
+    return items.map((m: any) => ({
+      id: m.id || m.modelID,
+      modelID: m.modelID || m.id,
+      providerID: m.providerID,
+      name: m.name || m.id,
+      family: m.family,
+      capabilities: m.capabilities,
+    }));
+  }
+
+  /**
+   * Retrieve the system default model configured in OpenCode.
+   */
+  public async getDefaultModel(): Promise<OpenCodeModelInfo | null> {
+    if (!this.serviceInfo) this.discoverService();
+    if (!this.serviceInfo) return null;
+
+    try {
+      const resp = await fetch(`${this.serviceInfo.url}/api/model/default`, {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      });
+      if (!resp.ok) return null;
+      const json = (await resp.json()) as any;
+      const data = json.data || json;
+      if (!data || !data.id) return null;
+      return {
+        id: data.id || data.modelID,
+        modelID: data.modelID || data.id,
+        providerID: data.providerID,
+        name: data.name || data.id,
+        family: data.family,
+        capabilities: data.capabilities,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Create a new session in OpenCode with optional model profile and agent.
+   */
+  public async createSession(options?: {
+    title?: string;
+    agent?: string;
+    model?: OpenCodeModelRef;
+  }): Promise<any> {
     if (!this.serviceInfo) this.discoverService();
     if (!this.serviceInfo) throw new Error("OpenCode service not available");
 
     const payload: Record<string, any> = {};
     if (options?.title) payload.title = options.title;
     if (options?.agent) payload.agent = options.agent;
+    if (options?.model) {
+      payload.model = {
+        providerID: options.model.providerID,
+        id: options.model.id,
+        variant: options.model.variant || "default",
+      };
+    }
 
     const resp = await fetch(`${this.serviceInfo.url}/api/session`, {
       method: "POST",
@@ -148,6 +251,44 @@ export class OpenCodeClient {
 
     const json = await resp.json() as any;
     return json.data !== undefined ? json.data : json;
+  }
+
+  /**
+   * Switch the model used by an existing OpenCode session.
+   */
+  public async switchSessionModel(sessionId: string, model: OpenCodeModelRef): Promise<boolean> {
+    if (!this.serviceInfo) this.discoverService();
+    if (!this.serviceInfo) throw new Error("OpenCode service not available");
+
+    const resp = await fetch(`${this.serviceInfo.url}/api/session/${sessionId}/model`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({
+        model: {
+          providerID: model.providerID,
+          id: model.id,
+          variant: model.variant || "default",
+        },
+      }),
+    });
+
+    return resp.ok;
+  }
+
+  /**
+   * Switch the active agent used by an existing OpenCode session.
+   */
+  public async switchSessionAgent(sessionId: string, agent: string): Promise<boolean> {
+    if (!this.serviceInfo) this.discoverService();
+    if (!this.serviceInfo) throw new Error("OpenCode service not available");
+
+    const resp = await fetch(`${this.serviceInfo.url}/api/session/${sessionId}/agent`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ agent }),
+    });
+
+    return resp.ok;
   }
 
   /**
@@ -228,6 +369,45 @@ export class OpenCodeClient {
   }
 
   /**
+   * Send a message to a session with model-aware options, agent selection, attachments, and metadata.
+   */
+  public async sendMessage(sessionId: string, prompt: string, options?: SendMessageOptions): Promise<any> {
+    if (!this.serviceInfo) this.discoverService();
+    if (!this.serviceInfo) throw new Error("OpenCode service not available");
+
+    // 1. Switch model if specified
+    if (options?.model) {
+      await this.switchSessionModel(sessionId, options.model);
+    }
+
+    // 2. Switch agent if specified
+    if (options?.agent) {
+      await this.switchSessionAgent(sessionId, options.agent);
+    }
+
+    // 3. Post prompt to session
+    const payload: Record<string, any> = { text: prompt };
+    if (options?.metadata) payload.metadata = options.metadata;
+    if (options?.files) payload.files = options.files;
+    if (options?.skills) payload.skills = options.skills;
+    if (options?.resume !== undefined) payload.resume = options.resume;
+
+    const resp = await fetch(`${this.serviceInfo.url}/api/session/${sessionId}/prompt`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Failed to send message to session ${sessionId}: HTTP ${resp.status} ${errText}`);
+    }
+
+    const json = await resp.json() as any;
+    return json.data !== undefined ? json.data : json;
+  }
+
+  /**
    * Interrupt a running session task.
    */
   public async interruptSession(sessionId: string): Promise<boolean> {
@@ -280,8 +460,55 @@ export class OpenCodeClient {
 
     const json = await resp.json() as any;
     return json.data !== undefined ? json.data : json;
-
   }
+
+  /**
+   * List pending permission requests for a session.
+   */
+  public async getSessionPermissions(sessionId: string): Promise<any[]> {
+    if (!this.serviceInfo) this.discoverService();
+    if (!this.serviceInfo) return [];
+
+    try {
+      const resp = await fetch(`${this.serviceInfo.url}/api/session/${sessionId}/permission`, {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      });
+      if (!resp.ok) return [];
+      const json = await resp.json() as any;
+      return Array.isArray(json) ? json : (json?.data || []);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Reply to a pending permission request in an OpenCode session.
+   */
+  public async replyPermission(
+    sessionId: string,
+    requestId: string,
+    decision: "once" | "always" | "reject" = "always",
+    message?: string
+  ): Promise<boolean> {
+    if (!this.serviceInfo) this.discoverService();
+    if (!this.serviceInfo) return false;
+
+    try {
+      const resp = await fetch(`${this.serviceInfo.url}/api/session/${sessionId}/permission/${requestId}/reply`, {
+        method: "POST",
+        headers: {
+          ...this.getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ decision, message: message || null }),
+      });
+      return resp.status === 204 || resp.ok;
+    } catch {
+      return false;
+    }
+  }
+
 
   /**
    * Subscribe to the OpenCode SSE event stream.
@@ -361,5 +588,218 @@ export class OpenCodeClient {
     return () => {
       controller.abort();
     };
+  }
+
+  /**
+   * Dispatches a prompt to an OpenCode session and yields incremental text and progress tokens over SSE.
+   * Suppresses raw chain-of-thought and internal tool arguments.
+   */
+  public async *executePromptStream(
+    sessionId: string,
+    prompt: string,
+    options?: {
+      model?: OpenCodeModelRef;
+      agent?: string;
+      signal?: AbortSignal;
+    }
+  ): AsyncIterable<OpenCodeStreamEvent> {
+    if (!this.serviceInfo) this.discoverService();
+    if (!this.serviceInfo) {
+      yield { type: "error", error: "OpenCode service not available. Is the OpenCode daemon running?" };
+      return;
+    }
+
+    const health = await this.health();
+    if (!health.ok) {
+      yield { type: "error", error: `OpenCode daemon unreachable: ${health.error || "Cannot connect"}` };
+      return;
+    }
+
+    // 1. Switch model (defaults to mimo-v2.6-flash-free if unspecified to prevent unauthenticated provider errors)
+    const targetModel: OpenCodeModelRef = options?.model || {
+      providerID: "opencode",
+      id: "mimo-v2.6-flash-free",
+      variant: "default",
+    };
+    try {
+      await this.switchSessionModel(sessionId, targetModel);
+    } catch (err: any) {
+      this.logger.warn(`Failed to switch model to ${targetModel.providerID}/${targetModel.id}:`, err);
+    }
+
+    // 2. Switch agent if specified
+    if (options?.agent) {
+      try {
+        await this.switchSessionAgent(sessionId, options.agent);
+      } catch (err: any) {
+        this.logger.warn(`Failed to switch agent to ${options.agent}:`, err);
+      }
+    }
+
+    // 3. Queue for SSE events
+    const eventQueue: OpenCodeStreamEvent[] = [];
+    let isFinished = false;
+    let accumulatedText = "";
+    let executionError: string | null = null;
+    let wakeQueue: (() => void) | null = null;
+    let lastActivityTime = Date.now();
+
+    const pushEvent = (ev: OpenCodeStreamEvent) => {
+      eventQueue.push(ev);
+      if (wakeQueue) {
+        wakeQueue();
+        wakeQueue = null;
+      }
+    };
+
+    let unsubscribeSSE: (() => void) | null = null;
+
+    try {
+      unsubscribeSSE = await this.subscribeEvents((raw) => {
+        const d = raw.data;
+        if (!d || typeof d !== "object") return;
+
+        // Check if event belongs to this session
+        const evSessionId = d.data?.sessionID || d.data?.sessionId || d.sessionId || d.sessionID;
+        if (evSessionId && evSessionId !== sessionId) {
+          return;
+        }
+
+        // Reset inactivity timer on any event for this session
+        lastActivityTime = Date.now();
+
+        const evType = String(d.type || raw.event || "").toLowerCase();
+
+        // Incremental Text Tokens
+        if (evType === "session.text.delta") {
+          const delta = d.data?.delta || d.data?.text;
+          if (delta && typeof delta === "string") {
+            accumulatedText += delta;
+            pushEvent({ type: "token", text: delta });
+          }
+        } else if (evType === "session.text.ended") {
+          const full = d.data?.text;
+          if (full && typeof full === "string" && !accumulatedText) {
+            accumulatedText = full;
+          }
+        }
+        // Step and Tool Progress
+        else if (evType.includes("step.started") || evType.includes("inbox.delivered")) {
+          pushEvent({ type: "progress", message: "Processing request..." });
+        } else if (evType.includes("tool") || d.data?.tool || d.tool || d.call?.name) {
+          const tName = d.data?.tool || d.tool || d.data?.name || d.name || "Tool";
+          pushEvent({ type: "tool_activity", tool: tName, status: "running" });
+        }
+        // Permission Request handling
+        else if (evType.includes("permission")) {
+          const reqId = d.data?.id || d.data?.requestID || d.id;
+          if (reqId) {
+            this.replyPermission(sessionId, reqId, "always").catch(() => {});
+          }
+        }
+        // Completion or Failure
+        else if (evType === "session.execution.succeeded") {
+          isFinished = true;
+          if (accumulatedText) {
+            pushEvent({ type: "done", fullText: accumulatedText });
+          }
+        } else if (evType === "session.execution.failed") {
+          isFinished = true;
+          const errMsg = d.data?.error?.message || "OpenCode execution failed";
+          executionError = errMsg;
+          pushEvent({ type: "error", error: errMsg });
+        }
+      }, options?.signal);
+    } catch (err: any) {
+      this.logger.warn("SSE subscription error, falling back to message polling:", err);
+    }
+
+    try {
+      // 4. Send the prompt
+      const promptPromise = this.sendPrompt(sessionId, prompt);
+      promptPromise.catch((err) => {
+        executionError = err.message;
+        isFinished = true;
+        pushEvent({ type: "error", error: `Prompt dispatch failed: ${err.message}` });
+      });
+
+      // 5. Stream events from queue until finished or aborted
+      const inactivityTimeoutMs = 180000; // 3-minute inactivity window for deep tool runs
+      let lastPermCheck = 0;
+
+      while (!isFinished || eventQueue.length > 0) {
+        if (options?.signal?.aborted) return;
+
+        // Proactively resolve any pending permission requests for this session
+        if (Date.now() - lastPermCheck > 800) {
+          lastPermCheck = Date.now();
+          this.getSessionPermissions(sessionId).then(perms => {
+            for (const p of perms) {
+              if (p?.id) {
+                this.replyPermission(sessionId, p.id, "always").catch(() => {});
+              }
+            }
+          }).catch(() => {});
+        }
+
+        while (eventQueue.length > 0) {
+          lastActivityTime = Date.now();
+          const ev = eventQueue.shift()!;
+          yield ev;
+          if (ev.type === "done" || ev.type === "error") {
+            return;
+          }
+        }
+
+        if (isFinished && eventQueue.length === 0) {
+          break;
+        }
+
+        if (Date.now() - lastActivityTime > inactivityTimeoutMs) {
+          yield { type: "error", error: "Request timed out awaiting OpenCode response (inactivity timeout)" };
+          return;
+        }
+
+        await new Promise<void>((resolve) => {
+          wakeQueue = resolve;
+          setTimeout(resolve, 50);
+        });
+      }
+
+      await promptPromise;
+
+      // 6. Safeguard: if finished without tokens streamed, retrieve message directly
+      if (!accumulatedText && !executionError) {
+        try {
+          const msgs = await this.getMessages(sessionId);
+          const assistantMsg = [...msgs].reverse().find((m: any) => m.type === "assistant" || m.role === "assistant");
+          if (assistantMsg) {
+            let extracted = "";
+            if (Array.isArray(assistantMsg.content)) {
+              extracted = assistantMsg.content
+                .filter((p: any) => p && (p.type === "text" || (!p.type && typeof p.text === "string")))
+                .map((p: any) => p.text || "")
+                .join("").trim();
+            } else if (typeof assistantMsg.content === "string") {
+              extracted = assistantMsg.content.trim();
+            }
+            if (extracted) {
+              accumulatedText = extracted;
+              yield { type: "token", text: extracted };
+            }
+          }
+        } catch (err: any) {
+          this.logger.debug("Failed message retrieval fallback:", err);
+        }
+      }
+
+      if (!executionError) {
+        yield { type: "done", fullText: accumulatedText };
+      }
+    } finally {
+      if (unsubscribeSSE) {
+        unsubscribeSSE();
+      }
+    }
   }
 }
