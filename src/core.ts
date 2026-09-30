@@ -124,6 +124,31 @@ export class JarvisCore {
     }
   }
 
+  public updateModels(models: { fast?: any; agent?: any }): void {
+    if (models.fast) {
+      this.config.models.fast = { ...this.config.models.fast, ...models.fast };
+      this.fastModel = createModelExecutor({
+        config: this.config,
+        client: this.opencode,
+        sessionMgr: this.sessionMgr,
+        profileType: "fast",
+        logger: this.logger,
+      });
+      this.logger.info(`Updated active FAST model to ${this.config.models.fast.providerID}/${this.config.models.fast.modelID}`);
+    }
+    if (models.agent) {
+      this.config.models.agent = { ...this.config.models.agent, ...models.agent };
+      this.agentDispatcher = new AgentDispatcher(
+        this.sessionMgr,
+        this.memoryMgr,
+        this.opencode,
+        this.logger,
+        this.config.models.agent
+      );
+      this.logger.info(`Updated active AGENT model to ${this.config.models.agent.providerID}/${this.config.models.agent.modelID}`);
+    }
+  }
+
   /**
    * Main interaction pipeline: Routes input and executes through the appropriate path.
    */

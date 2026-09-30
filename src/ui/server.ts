@@ -75,6 +75,55 @@ export class JarvisServer {
           return;
         }
 
+        // GET /api/config
+        if (url.pathname === "/api/config" && req.method === "GET") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            name: this.core.config.personality.name,
+            userTitle: this.core.config.personality.userTitle,
+            models: this.core.config.models,
+            version: this.core.config.version,
+          }));
+          return;
+        }
+
+        // GET /api/models
+        if (url.pathname === "/api/models" && req.method === "GET") {
+          const catalog = await this.core.opencode.listModels().catch(() => []);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            configured: this.core.config.models,
+            catalog,
+          }));
+          return;
+        }
+
+        // POST /api/models
+        if (url.pathname === "/api/models" && req.method === "POST") {
+          let body = "";
+          req.on("data", chunk => body += chunk);
+          req.on("end", () => {
+            try {
+              const { fast, agent } = JSON.parse(body);
+              this.core.updateModels({ fast, agent });
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ success: true, models: this.core.config.models }));
+            } catch (err: any) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        // POST /api/voice/stop
+        if (url.pathname === "/api/voice/stop" && req.method === "POST") {
+          this.core.voice.interrupt();
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true }));
+          return;
+        }
+
         // POST /api/confirm
         if (url.pathname === "/api/confirm" && req.method === "POST") {
           let body = "";

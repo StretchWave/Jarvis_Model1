@@ -3,26 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JARVIS — Personal AI Assistant</title>
+  <title>JARVIS — Neural Core AI Workstation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #090b10;
-      --panel: rgba(18, 22, 34, 0.75);
-      --panel-border: rgba(0, 210, 255, 0.15);
-      --panel-hover: rgba(28, 36, 56, 0.85);
+      --bg: #06080e;
+      --bg-deep: #040509;
+      --panel: rgba(10, 15, 26, 0.42);
+      --panel-solid: rgba(12, 18, 30, 0.85);
+      --panel-border: rgba(0, 210, 255, 0.16);
+      --panel-border-bright: rgba(0, 210, 255, 0.4);
+      --panel-hover: rgba(18, 28, 48, 0.65);
       --accent: #00d2ff;
-      --accent-glow: rgba(0, 210, 255, 0.35);
+      --accent-bright: #33dcff;
+      --accent-glow: rgba(0, 210, 255, 0.45);
       --accent-dim: #007799;
-      --accent-orange: #ff7700;
+      --accent-blue: #0077ff;
+      --accent-purple: #a371f7;
+      --accent-green: #3fb950;
+      --accent-orange: #ff9900;
+      --danger: #f85149;
       --text: #e6edf3;
       --text-muted: #8b949e;
       --text-subtle: #565f69;
-      --danger: #f85149;
-      --success: #3fb950;
       --radius: 14px;
+      --radius-sm: 8px;
+      --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
     }
 
     * {
@@ -33,38 +42,75 @@
 
     body {
       background-color: var(--bg);
-      background-image: 
-        radial-gradient(circle at 15% 15%, rgba(0, 210, 255, 0.08) 0%, transparent 40%),
-        radial-gradient(circle at 85% 85%, rgba(0, 119, 255, 0.05) 0%, transparent 40%);
       color: var(--text);
-      font-family: 'Outfit', sans-serif;
+      font-family: var(--font-main);
       height: 100vh;
+      width: 100vw;
       display: flex;
       overflow: hidden;
+      position: relative;
+      user-select: none;
     }
 
-    /* Sidebar */
+    /* Ambient atmospheric background behind canvas */
+    .space-backdrop {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: 
+        radial-gradient(circle at 50% 50%, rgba(0, 70, 130, 0.15) 0%, transparent 60%),
+        radial-gradient(circle at 20% 20%, rgba(0, 210, 255, 0.05) 0%, transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(0, 100, 255, 0.06) 0%, transparent 50%),
+        var(--bg);
+      z-index: 0;
+    }
+
+    /* Primary JARVIS Core Canvas - occupies the central background area */
+    #jarvisCoreCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* App Frame Container */
+    .app-frame {
+      position: relative;
+      display: flex;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+
+    /* Left Sidebar - Transparent HUD */
     .sidebar {
-      width: 290px;
-      background: var(--panel);
-      backdrop-filter: blur(20px);
+      width: 280px;
+      background: rgba(8, 12, 22, 0.45);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
       border-right: 1px solid var(--panel-border);
       display: flex;
       flex-direction: column;
-      padding: 24px 18px;
-      gap: 20px;
+      padding: 22px 16px;
+      gap: 18px;
       z-index: 10;
+      transition: transform 0.3s ease, width 0.3s ease;
     }
 
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(0, 210, 255, 0.1);
     }
 
-    .arc-reactor {
-      width: 32px;
-      height: 32px;
+    .mini-reactor {
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
       border: 2px solid var(--accent);
       box-shadow: 0 0 15px var(--accent-glow);
@@ -72,35 +118,70 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      animation: pulse-glow 3s infinite alternate;
+      animation: reactor-spin 12s linear infinite;
     }
 
-    .arc-reactor::after {
+    .mini-reactor::after {
       content: '';
-      width: 14px;
-      height: 14px;
+      width: 12px;
+      height: 12px;
       background: var(--accent);
       border-radius: 50%;
       box-shadow: 0 0 10px var(--accent);
     }
 
-    @keyframes pulse-glow {
-      0% { box-shadow: 0 0 8px var(--accent-glow); }
-      100% { box-shadow: 0 0 20px var(--accent); }
+    @keyframes reactor-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
 
     .brand-title {
       font-size: 20px;
-      font-weight: 700;
+      font-weight: 800;
       letter-spacing: 2px;
       color: #fff;
+      text-shadow: 0 0 12px rgba(0, 210, 255, 0.6);
     }
 
     .brand-sub {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--accent);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    /* State Pill on Sidebar */
+    .state-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: rgba(0, 210, 255, 0.08);
+      border: 1px solid rgba(0, 210, 255, 0.25);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
       letter-spacing: 1px;
       text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .state-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    .state-pill.speaking .state-dot { background: #00ffaa; box-shadow: 0 0 12px #00ffaa; animation: dot-pulse 0.6s infinite alternate; }
+    .state-pill.listening .state-dot { background: #ffaa00; box-shadow: 0 0 12px #ffaa00; animation: dot-pulse 0.4s infinite alternate; }
+    .state-pill.thinking .state-dot { background: #a371f7; box-shadow: 0 0 12px #a371f7; animation: dot-pulse 0.8s infinite alternate; }
+
+    @keyframes dot-pulse {
+      0% { transform: scale(0.8); opacity: 0.7; }
+      100% { transform: scale(1.3); opacity: 1; }
     }
 
     .session-section {
@@ -115,7 +196,7 @@
       text-transform: uppercase;
       letter-spacing: 1.5px;
       color: var(--text-muted);
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -126,12 +207,12 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
       padding-right: 4px;
     }
 
     .session-item {
-      padding: 10px 14px;
+      padding: 9px 12px;
       border-radius: 8px;
       font-size: 13px;
       color: var(--text-muted);
@@ -147,26 +228,27 @@
     }
 
     .session-item:hover {
-      background: var(--panel-hover);
+      background: rgba(0, 210, 255, 0.08);
       color: #fff;
     }
 
     .session-item.active {
-      background: rgba(0, 210, 255, 0.12);
-      border-color: rgba(0, 210, 255, 0.3);
+      background: rgba(0, 210, 255, 0.14);
+      border-color: rgba(0, 210, 255, 0.35);
       color: var(--accent);
-      font-weight: 500;
+      font-weight: 600;
     }
 
+    /* System Status HUD */
     .system-status {
-      padding: 14px;
-      background: rgba(10, 14, 24, 0.6);
+      padding: 12px 14px;
+      background: rgba(8, 14, 26, 0.6);
       border: 1px solid var(--panel-border);
       border-radius: var(--radius);
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      font-size: 12px;
+      gap: 7px;
+      font-size: 11px;
     }
 
     .status-row {
@@ -180,65 +262,131 @@
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 6px var(--success);
+      background: var(--accent-green);
+      box-shadow: 0 0 6px var(--accent-green);
     }
 
-    /* Main Container */
-    .main-content {
+    /* Main Center Workspace - Contains Sphere Canvas (behind) & Floating HUD (in front) */
+    .main-workspace {
       flex: 1;
       display: flex;
       flex-direction: column;
       position: relative;
+      overflow: hidden;
     }
 
-    /* Top Bar */
+    /* Top HUD Navigation Bar */
     .topbar {
-      height: 64px;
+      height: 60px;
       border-bottom: 1px solid var(--panel-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 32px;
-      background: var(--panel);
+      padding: 0 28px;
+      background: rgba(8, 12, 22, 0.38);
       backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      z-index: 10;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .mode-badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 12px;
+      padding: 5px 12px;
       border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      background: rgba(0, 210, 255, 0.1);
-      border: 1px solid rgba(0, 210, 255, 0.25);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      background: rgba(0, 210, 255, 0.12);
+      border: 1px solid rgba(0, 210, 255, 0.3);
       color: var(--accent);
+      box-shadow: 0 0 10px rgba(0, 210, 255, 0.15);
     }
 
-    .mode-badge.direct { background: rgba(63, 185, 80, 0.15); border-color: rgba(63, 185, 80, 0.3); color: #3fb950; }
-    .mode-badge.search { background: rgba(255, 170, 0, 0.15); border-color: rgba(255, 170, 0, 0.3); color: #ffaa00; }
-    .mode-badge.fast   { background: rgba(0, 210, 255, 0.15); border-color: rgba(0, 210, 255, 0.3); color: #00d2ff; }
-    .mode-badge.agent  { background: rgba(163, 113, 247, 0.15); border-color: rgba(163, 113, 247, 0.3); color: #a371f7; }
+    .mode-badge.direct { background: rgba(63, 185, 80, 0.15); border-color: rgba(63, 185, 80, 0.4); color: #3fb950; }
+    .mode-badge.search { background: rgba(255, 170, 0, 0.15); border-color: rgba(255, 170, 0, 0.4); color: #ffaa00; }
+    .mode-badge.fast   { background: rgba(0, 210, 255, 0.15); border-color: rgba(0, 210, 255, 0.4); color: #00d2ff; }
+    .mode-badge.agent  { background: rgba(163, 113, 247, 0.15); border-color: rgba(163, 113, 247, 0.4); color: #a371f7; }
 
-    /* Chat Log */
+    /* Topbar Controls & Voice Selector */
+    .topbar-select {
+      background: rgba(14, 20, 36, 0.7);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      padding: 5px 10px;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .topbar-select:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .window-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid var(--panel-border);
+      background: rgba(16, 22, 38, 0.6);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .window-btn:hover {
+      background: var(--panel-hover);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Chat Container - Glassmorphic HUD floating in front of the central sphere */
     .chat-container {
       flex: 1;
       overflow-y: auto;
-      padding: 32px;
+      padding: 24px 32px;
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: 20px;
+      position: relative;
+      z-index: 5;
+      user-select: text;
     }
 
+    /* Message HUD cards */
     .message {
       max-width: 820px;
       display: flex;
-      gap: 16px;
+      gap: 14px;
       line-height: 1.6;
       font-size: 15px;
+      animation: message-appear 0.25s cubic-bezier(0.2, 0.8, 0.3, 1);
+    }
+
+    @keyframes message-appear {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .message.user {
@@ -253,7 +401,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 600;
+      font-weight: 700;
       font-size: 13px;
       flex-shrink: 0;
     }
@@ -262,34 +410,65 @@
       background: rgba(0, 210, 255, 0.15);
       border: 1px solid var(--accent);
       color: var(--accent);
-      box-shadow: 0 0 10px var(--accent-glow);
+      box-shadow: 0 0 12px var(--accent-glow);
     }
 
     .message.user .message-avatar {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(0, 119, 255, 0.2);
+      border: 1px solid rgba(0, 119, 255, 0.4);
       color: #fff;
     }
 
+    /* Ultra-Glassmorphic Message Content - Sphere stays visible behind */
     .message-content {
-      background: var(--panel);
-      backdrop-filter: blur(15px);
+      background: rgba(10, 16, 28, 0.45);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       padding: 16px 20px;
       border-radius: var(--radius);
-      border: 1px solid var(--panel-border);
+      border: 1px solid rgba(0, 210, 255, 0.14);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 15px rgba(0, 210, 255, 0.03);
       position: relative;
+      color: #e6edf3;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
     }
 
     .message.user .message-content {
-      background: rgba(0, 119, 255, 0.15);
-      border-color: rgba(0, 119, 255, 0.3);
+      background: rgba(0, 119, 255, 0.18);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-color: rgba(0, 140, 255, 0.35);
+      color: #fff;
+    }
+
+    /* Synchronized Speech Words Reveal & Highlight */
+    .speech-word {
+      display: inline-block;
+      transition: color 0.12s ease, text-shadow 0.12s ease, transform 0.12s ease;
+      white-space: pre-wrap;
+    }
+
+    .speech-word.word-active {
+      color: #33dcff !important;
+      text-shadow: 0 0 10px rgba(0, 210, 255, 0.9), 0 0 20px rgba(0, 210, 255, 0.5);
+      transform: scale(1.04);
+      font-weight: 600;
+    }
+
+    .speech-word.word-spoken {
+      color: #e6edf3;
+    }
+
+    .speech-word.word-pending {
+      color: rgba(230, 237, 243, 0.45);
     }
 
     /* Live Activity Cards */
     .activity-card {
       margin-top: 10px;
       padding: 10px 14px;
-      background: rgba(0, 0, 0, 0.35);
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(12px);
       border-left: 3px solid var(--accent);
       border-radius: 4px;
       font-size: 13px;
@@ -297,10 +476,6 @@
       display: flex;
       align-items: center;
       gap: 8px;
-    }
-
-    .activity-card.tool {
-      border-left-color: #a371f7;
     }
 
     .sources-list {
@@ -328,30 +503,34 @@
       text-decoration: underline;
     }
 
-    /* Input Bar */
+    /* Input Bar HUD */
     .input-bar {
-      padding: 20px 32px 28px 32px;
-      background: linear-gradient(180deg, transparent 0%, rgba(9, 11, 16, 0.95) 40%);
+      padding: 18px 32px 24px 32px;
+      background: linear-gradient(180deg, transparent 0%, rgba(6, 9, 16, 0.85) 45%);
       display: flex;
       flex-direction: column;
       gap: 10px;
+      position: relative;
+      z-index: 10;
     }
 
     .input-container {
-      background: var(--panel);
+      background: rgba(12, 18, 32, 0.6);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
       border: 1px solid var(--panel-border);
       border-radius: 30px;
       display: flex;
       align-items: center;
       padding: 6px 14px 6px 20px;
-      gap: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-      transition: all 0.2s ease;
+      gap: 10px;
+      box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 210, 255, 0.04);
+      transition: all 0.25s ease;
     }
 
     .input-container:focus-within {
       border-color: var(--accent);
-      box-shadow: 0 0 15px var(--accent-glow);
+      box-shadow: 0 0 25px var(--accent-glow);
     }
 
     .prompt-input {
@@ -388,62 +567,161 @@
     }
 
     .mic-btn.active {
-      background: rgba(248, 81, 73, 0.2);
+      background: rgba(248, 81, 73, 0.25);
       color: var(--danger);
-      box-shadow: 0 0 12px rgba(248, 81, 73, 0.4);
-      animation: pulse-mic 1s infinite alternate;
+      box-shadow: 0 0 16px rgba(248, 81, 73, 0.5);
+      animation: pulse-mic 0.8s infinite alternate;
     }
 
     @keyframes pulse-mic {
       0% { transform: scale(1); }
-      100% { transform: scale(1.08); }
+      100% { transform: scale(1.12); }
     }
 
     .send-btn {
       background: var(--accent);
       color: #000;
-      font-weight: 600;
+      font-weight: 700;
     }
 
     .send-btn:hover {
       background: #33dcff;
-      box-shadow: 0 0 12px var(--accent-glow);
+      box-shadow: 0 0 16px var(--accent-glow);
     }
 
-    /* Permission Modal */
+    .stop-btn {
+      background: rgba(248, 81, 73, 0.2);
+      color: var(--danger);
+      border: 1px solid rgba(248, 81, 73, 0.4);
+      display: none;
+    }
+
+    .stop-btn.visible {
+      display: flex;
+    }
+
+    /* Floating Minimized Response Window */
+    .floating-response-window {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 380px;
+      background: rgba(8, 13, 24, 0.88);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid var(--accent);
+      border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 210, 255, 0.25);
+      padding: 18px;
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      animation: floating-slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    @keyframes floating-slide-in {
+      from { opacity: 0; transform: translateY(20px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .floating-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .floating-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .floating-visualizer-container {
+      width: 100%;
+      height: 38px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #floatingVisualizerCanvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .floating-text-container {
+      max-height: 140px;
+      overflow-y: auto;
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: #e6edf3;
+      padding-right: 4px;
+    }
+
+    .floating-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* Model Selection Modal */
     .modal-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(8px);
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(12px);
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      z-index: 2000;
     }
 
     .modal {
-      width: 440px;
-      background: #141926;
-      border: 1px solid var(--accent-orange);
+      width: 480px;
+      background: rgba(14, 20, 34, 0.95);
+      border: 1px solid var(--panel-border-bright);
       border-radius: var(--radius);
       padding: 24px;
       display: flex;
       flex-direction: column;
       gap: 16px;
-      box-shadow: 0 0 30px rgba(255, 119, 0, 0.25);
+      box-shadow: 0 0 35px rgba(0, 210, 255, 0.2);
     }
 
     .modal-title {
       font-size: 18px;
-      font-weight: 600;
-      color: var(--accent-orange);
+      font-weight: 700;
+      color: var(--accent);
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+
+    .modal-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .modal-form-group label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .modal-select {
+      background: rgba(10, 14, 24, 0.8);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      color: #fff;
+      padding: 8px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
     }
 
     .modal-buttons {
@@ -464,109 +742,204 @@
     }
 
     .btn-approve {
-      background: var(--accent-orange);
+      background: var(--accent);
       color: #000;
+    }
+
+    .btn-approve:hover {
+      background: #33dcff;
+      box-shadow: 0 0 12px var(--accent-glow);
     }
 
     .btn-cancel {
       background: rgba(255, 255, 255, 0.1);
       color: #fff;
     }
+
+    .btn-cancel:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 900px) {
+      .sidebar {
+        width: 70px;
+        padding: 16px 8px;
+      }
+      .brand-title, .brand-sub, .session-section, .system-status {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="arc-reactor"></div>
-      <div>
-        <div class="brand-title">JARVIS</div>
-        <div class="brand-sub">Neural Core 1.0</div>
-      </div>
-    </div>
+  <!-- Ambient Space Background -->
+  <div class="space-backdrop"></div>
 
-    <div class="session-section">
-      <div class="section-label">
-        <span>Active Sessions</span>
-        <button class="icon-btn" id="newSessionBtn" title="New Session" style="width: 24px; height: 24px;">+</button>
-      </div>
-      <ul class="session-list" id="sessionList">
-        <li class="session-item active">General Session</li>
-        <li class="session-item">REPP Project</li>
-        <li class="session-item">Research / Web</li>
-      </ul>
-    </div>
+  <!-- Primary JARVIS Holographic Sphere Canvas (Z-Index: 1, occupies central background) -->
+  <canvas id="jarvisCoreCanvas"></canvas>
 
-    <div class="system-status">
-      <div class="status-row">
-        <span>OpenCode Daemon</span>
-        <span id="opencodeStatus"><span class="status-indicator"></span> Connected</span>
-      </div>
-      <div class="status-row">
-        <span>Active Memory</span>
-        <span id="memoryCount">4 facts</span>
-      </div>
-      <div class="status-row">
-        <span>Direct Engine</span>
-        <span style="color: var(--success);">Sub-50ms</span>
-      </div>
-    </div>
-  </aside>
-
-  <!-- Main Panel -->
-  <main class="main-content">
-    <!-- Topbar -->
-    <header class="topbar">
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <span style="font-weight: 500;">Status: Ready</span>
-        <span class="mode-badge fast" id="modeBadge">FAST PATH</span>
-      </div>
-      <div style="font-size: 13px; color: var(--text-muted);" id="currentTaskDisplay">
-        No active background task
-      </div>
-    </header>
-
-    <!-- Chat Output -->
-    <section class="chat-container" id="chatContainer">
-      <div class="message jarvis">
-        <div class="message-avatar">J</div>
-        <div class="message-content">
-          Good day, Sir. All systems are operational. OpenCode is connected and standing by for deep reasoning or coding tasks. How may I assist you today?
+  <!-- App UI Frame (Z-Index: 2, transparent HUD floating in front of sphere) -->
+  <div class="app-frame" id="appFrame">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mini-reactor"></div>
+        <div>
+          <div class="brand-title">JARVIS</div>
+          <div class="brand-sub">Neural Core 2.0</div>
         </div>
       </div>
-    </section>
 
-    <!-- Input Bar -->
-    <footer class="input-bar">
-      <div class="input-container">
-        <input type="text" class="prompt-input" id="promptInput" placeholder="Ask Jarvis, calculate, inspect project, or speak..." autocomplete="off">
-        <button class="icon-btn mic-btn" id="micBtn" title="Push-to-Talk Voice Input">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="22"></line>
-          </svg>
-        </button>
-        <button class="icon-btn send-btn" id="sendBtn" title="Send Command">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-        </button>
+      <div class="state-pill" id="statePill">
+        <span class="state-dot"></span>
+        <span id="statePillText">IDLE</span>
       </div>
-    </footer>
-  </main>
+
+      <div class="session-section">
+        <div class="section-label">
+          <span>Active Sessions</span>
+          <button class="icon-btn" id="newSessionBtn" title="New Session" style="width: 24px; height: 24px;">+</button>
+        </div>
+        <ul class="session-list" id="sessionList">
+          <li class="session-item active">General Session</li>
+        </ul>
+      </div>
+
+      <div class="system-status">
+        <div class="status-row">
+          <span>OpenCode Daemon</span>
+          <span id="opencodeStatus"><span class="status-indicator"></span> Connected</span>
+        </div>
+        <div class="status-row">
+          <span>Active Gateway</span>
+          <span style="color: var(--accent);" id="activeGatewayText">OpenCode Local</span>
+        </div>
+        <div class="status-row">
+          <span>Direct Latency</span>
+          <span style="color: var(--accent-green);">Sub-50ms</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main-workspace">
+      <!-- Topbar HUD -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <span style="font-weight: 600; font-size: 13.5px; letter-spacing: 0.5px;">SYSTEM STATUS:</span>
+          <span class="mode-badge fast" id="modeBadge">FAST PATH</span>
+          <span style="font-size: 12.5px; color: var(--text-muted);" id="currentTaskDisplay">Autonomous Core Ready</span>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Voice Selector -->
+          <select class="topbar-select" id="voiceSelect" title="Select JARVIS Voice">
+            <option value="default">British Male (JARVIS Natural)</option>
+          </select>
+
+          <!-- Model Profile Switcher -->
+          <button class="topbar-select" id="modelConfigBtn" title="Configure OpenCode Models">
+            ⚙️ Models
+          </button>
+
+          <!-- Minimize Window Button -->
+          <button class="window-btn" id="minimizeBtn" title="Minimize to Floating HUD">_</button>
+        </div>
+      </header>
+
+      <!-- Glassmorphic Chat Log (Sphere remains visible through transparent HUD) -->
+      <section class="chat-container" id="chatContainer">
+        <div class="message jarvis">
+          <div class="message-avatar">J</div>
+          <div class="message-content">
+            Good day, Sir. All systems are operational. OpenCode is online as our unified model gateway. How may I assist you today?
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom Input HUD -->
+      <footer class="input-bar">
+        <div class="input-container">
+          <input type="text" class="prompt-input" id="promptInput" placeholder="Ask Jarvis, calculate, inspect project, or speak..." autocomplete="off">
+          
+          <!-- Stop Speaking Button -->
+          <button class="icon-btn stop-btn" id="stopBtn" title="Stop Speaking">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+            </svg>
+          </button>
+
+          <!-- Push to Talk Mic Button -->
+          <button class="icon-btn mic-btn" id="micBtn" title="Push-to-Talk Voice Input">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="22"></line>
+            </svg>
+          </button>
+
+          <!-- Send Prompt Button -->
+          <button class="icon-btn send-btn" id="sendBtn" title="Send Command">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Floating Minimized Response Window (Shown ONLY when minimized & actively responding/speaking) -->
+  <div class="floating-response-window" id="floatingResponseWindow">
+    <div class="floating-header">
+      <div class="floating-brand">
+        <div class="mini-reactor" style="width: 24px; height: 24px;"></div>
+        <span style="font-weight: 700; font-size: 13px; color: var(--accent);">JARVIS RESPONSE</span>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button class="window-btn" id="floatingRestoreBtn" title="Restore Main UI" style="width: 24px; height: 24px; font-size: 12px;">↗</button>
+        <button class="window-btn" id="floatingCloseBtn" title="Dismiss" style="width: 24px; height: 24px; font-size: 12px;">✕</button>
+      </div>
+    </div>
+    <div class="floating-visualizer-container">
+      <canvas id="floatingVisualizerCanvas"></canvas>
+    </div>
+    <div class="floating-text-container" id="floatingText"></div>
+  </div>
+
+  <!-- Model Configuration Modal -->
+  <div class="modal-overlay" id="modelModal">
+    <div class="modal">
+      <div class="modal-title">
+        <span>⚙️ OpenCode Model Profiles</span>
+      </div>
+      <div class="modal-form-group">
+        <label for="fastModelSelect">FAST Conversational Model:</label>
+        <select class="modal-select" id="fastModelSelect"></select>
+      </div>
+      <div class="modal-form-group">
+        <label for="agentModelSelect">AGENT Deep Reasoning / Coding Model:</label>
+        <select class="modal-select" id="agentModelSelect"></select>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn btn-cancel" id="btnModelCancel">Cancel</button>
+        <button class="btn btn-approve" id="btnModelSave">Save & Switch</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Permission Confirmation Modal -->
   <div class="modal-overlay" id="confirmModal">
     <div class="modal">
-      <div class="modal-title">
+      <div class="modal-title" style="color: var(--accent-orange);">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
           <line x1="12" y1="9" x2="12" y2="13"></line>
           <line x1="12" y1="17" x2="12.01" y2="17"></line>
         </svg>
-        Permission Required
+        Action Permission Required
       </div>
       <div id="modalDetails" style="font-size: 14px; color: var(--text);">
         Jarvis requests permission to perform a privileged action.
@@ -579,10 +952,834 @@
   </div>
 
   <script>
+    /**
+     * JARVIS State Machine
+     * States: IDLE | LISTENING | THINKING | GENERATING | SPEAKING
+     */
+    class JarvisStateManager {
+      constructor() {
+        this.currentState = "IDLE";
+        this.listeners = [];
+      }
+
+      setState(newState) {
+        if (this.currentState === newState) return;
+        const oldState = this.currentState;
+        this.currentState = newState;
+        this.notify(newState, oldState);
+      }
+
+      getState() {
+        return this.currentState;
+      }
+
+      subscribe(fn) {
+        this.listeners.push(fn);
+      }
+
+      notify(newState, oldState) {
+        for (const fn of this.listeners) {
+          try { fn(newState, oldState); } catch (e) { console.error("State listener err:", e); }
+        }
+      }
+    }
+
+    const stateMgr = new JarvisStateManager();
+
+    /**
+     * Audio Engine & Analyser
+     * Uses Web Audio API AudioContext + AnalyserNode for true audio-reactive visualization.
+     */
+    class AudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.analyser = null;
+        this.dataArray = null;
+        this.timeDomainArray = null;
+        this.isMicActive = false;
+        this.micStream = null;
+        this.micSource = null;
+        this.speechHarmonicsOsc = null;
+        this.speechGain = null;
+        this.init();
+      }
+
+      init() {
+        try {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            this.ctx = new AudioContextClass();
+            this.analyser = this.ctx.createAnalyser();
+            this.analyser.fftSize = 256;
+            this.analyser.smoothingTimeConstant = 0.85;
+            this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+            this.timeDomainArray = new Uint8Array(this.analyser.frequencyBinCount);
+          }
+        } catch (e) {
+          console.warn("Web Audio API initialization failed:", e);
+        }
+      }
+
+      resume() {
+        if (this.ctx && this.ctx.state === "suspended") {
+          this.ctx.resume();
+        }
+      }
+
+      async connectMicrophone() {
+        this.resume();
+        try {
+          if (!this.micStream) {
+            this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          }
+          if (this.ctx && this.analyser && !this.micSource) {
+            this.micSource = this.ctx.createMediaStreamSource(this.micStream);
+            this.micSource.connect(this.analyser);
+          }
+          this.isMicActive = true;
+        } catch (e) {
+          console.warn("Microphone audio stream connect failed:", e);
+        }
+      }
+
+      disconnectMicrophone() {
+        if (this.micSource) {
+          try { this.micSource.disconnect(); } catch {}
+          this.micSource = null;
+        }
+        this.isMicActive = false;
+      }
+
+      startSpeechSynthesisAudioFeed() {
+        this.resume();
+        if (!this.ctx || !this.analyser) return;
+
+        // Provide resonant speech harmonic carrier into analyser
+        if (!this.speechGain) {
+          this.speechGain = this.ctx.createGain();
+          this.speechGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+          this.speechGain.connect(this.analyser);
+          // Connect to muted destination so it produces real audio buffer frames
+          const muteGain = this.ctx.createGain();
+          muteGain.gain.value = 0.0;
+          this.speechGain.connect(muteGain);
+          muteGain.connect(this.ctx.destination);
+        }
+
+        if (!this.speechHarmonicsOsc) {
+          this.speechHarmonicsOsc = this.ctx.createOscillator();
+          this.speechHarmonicsOsc.type = "sawtooth";
+          this.speechHarmonicsOsc.frequency.setValueAtTime(140, this.ctx.currentTime);
+          this.speechHarmonicsOsc.connect(this.speechGain);
+          this.speechHarmonicsOsc.start();
+        }
+
+        this.speechGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.speechGain.gain.setValueAtTime(0.45, this.ctx.currentTime);
+      }
+
+      stopSpeechSynthesisAudioFeed() {
+        if (this.speechGain && this.ctx) {
+          this.speechGain.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.speechGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+        }
+      }
+
+      getAnalysis() {
+        let amplitude = 0;
+        let bass = 0;
+        let mid = 0;
+        let treble = 0;
+
+        if (this.analyser && this.dataArray) {
+          this.analyser.getByteFrequencyData(this.dataArray);
+          this.analyser.getByteTimeDomainData(this.timeDomainArray);
+
+          const len = this.dataArray.length;
+          let sum = 0;
+          const bassEnd = Math.floor(len * 0.15);
+          const midEnd = Math.floor(len * 0.55);
+
+          let bassSum = 0;
+          let midSum = 0;
+          let trebleSum = 0;
+
+          for (let i = 0; i < len; i++) {
+            const v = this.dataArray[i];
+            sum += v;
+            if (i < bassEnd) bassSum += v;
+            else if (i < midEnd) midSum += v;
+            else trebleSum += v;
+          }
+
+          amplitude = sum / (len * 255);
+          bass = bassSum / (bassEnd * 255);
+          mid = midSum / ((midEnd - bassEnd) * 255);
+          treble = trebleSum / ((len - midEnd) * 255);
+        }
+
+        return { amplitude, bass, mid, treble, timeDomain: this.timeDomainArray };
+      }
+    }
+
+    const audioEngine = new AudioEngine();
+
+    /**
+     * Primary JARVIS Holographic Sphere Visualizer
+     * Renders directly onto #jarvisCoreCanvas:
+     * - Multi-ring concentric 3D perspective gyroscope
+     * - Flowing inner waveform ribbon reacting directly to audio
+     * - Fine orbiting energy particles and trails
+     * - Holographic glow, reactive distortion, and central neural emblem
+     */
+    class SphereVisualizer {
+      constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext("2d");
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+
+        // Smooth interpolated audio values
+        this.smoothedAmp = 0;
+        this.smoothedBass = 0;
+        this.smoothedMid = 0;
+        this.smoothedTreble = 0;
+
+        // Parallax mouse offsets
+        this.targetMouseX = 0;
+        this.targetMouseY = 0;
+        this.mouseX = 0;
+        this.mouseY = 0;
+
+        // Particle System
+        this.particles = [];
+        this.numParticles = 120;
+        this.initParticles();
+
+        // Orbital angles
+        this.ringAngle1 = 0;
+        this.ringAngle2 = 0;
+        this.ringAngle3 = 0;
+        this.ringAngle4 = 0;
+
+        this.resize();
+        window.addEventListener("resize", () => this.resize());
+        window.addEventListener("mousemove", (e) => {
+          this.targetMouseX = (e.clientX - window.innerWidth / 2) * 0.035;
+          this.targetMouseY = (e.clientY - window.innerHeight / 2) * 0.035;
+        });
+
+        this.animate = this.animate.bind(this);
+        requestAnimationFrame(this.animate);
+      }
+
+      resize() {
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.canvas.width = this.width * window.devicePixelRatio;
+        this.canvas.height = this.height * window.devicePixelRatio;
+        this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      }
+
+      initParticles() {
+        this.particles = [];
+        for (let i = 0; i < this.numParticles; i++) {
+          this.particles.push({
+            theta: Math.random() * Math.PI * 2,
+            phi: Math.acos((Math.random() * 2) - 1),
+            radiusRatio: 0.35 + Math.random() * 0.65,
+            speed: 0.004 + Math.random() * 0.008,
+            size: 1.2 + Math.random() * 1.8,
+            alpha: 0.3 + Math.random() * 0.6,
+          });
+        }
+      }
+
+      animate(timestamp) {
+        requestAnimationFrame(this.animate);
+
+        // Smooth mouse parallax
+        this.mouseX += (this.targetMouseX - this.mouseX) * 0.08;
+        this.mouseY += (this.targetMouseY - this.mouseY) * 0.08;
+
+        // Fetch real-time audio analysis
+        const analysis = audioEngine.getAnalysis();
+        const state = stateMgr.getState();
+
+        // Lerp audio parameters
+        let targetAmp = analysis.amplitude;
+        let targetBass = analysis.bass;
+        let targetMid = analysis.mid;
+        let targetTreble = analysis.treble;
+
+        // Ambient pulse when idle/thinking if audio is low
+        if (state === "IDLE") {
+          targetAmp = Math.max(targetAmp, 0.04 + Math.sin(timestamp * 0.0015) * 0.02);
+        } else if (state === "THINKING") {
+          targetAmp = Math.max(targetAmp, 0.12 + Math.sin(timestamp * 0.004) * 0.06);
+        } else if (state === "LISTENING") {
+          targetAmp = Math.max(targetAmp, 0.16 + Math.sin(timestamp * 0.005) * 0.08);
+        } else if (state === "SPEAKING") {
+          targetAmp = Math.max(targetAmp, 0.28 + Math.sin(timestamp * 0.008) * 0.15);
+        }
+
+        this.smoothedAmp += (targetAmp - this.smoothedAmp) * 0.12;
+        this.smoothedBass += (targetBass - this.smoothedBass) * 0.14;
+        this.smoothedMid += (targetMid - this.smoothedMid) * 0.12;
+        this.smoothedTreble += (targetTreble - this.smoothedTreble) * 0.12;
+
+        this.render(timestamp, analysis.timeDomain);
+      }
+
+      render(timestamp, timeDomainData) {
+        const ctx = this.ctx;
+        const w = this.width;
+        const h = this.height;
+        ctx.clearRect(0, 0, w, h);
+
+        // Centered coordinates with slight parallax offset
+        const cx = (w / 2) + this.mouseX;
+        const cy = (h / 2) + this.mouseY;
+
+        // Sphere radius scales with screen size (large central sphere)
+        const baseRadius = Math.min(w * 0.32, h * 0.36, 320);
+        const dynamicRadius = baseRadius * (1 + (this.smoothedAmp * 0.18));
+
+        const state = stateMgr.getState();
+
+        // Color definitions based on state
+        let primaryColor = "0, 210, 255";
+        let glowColor = "rgba(0, 210, 255, 0.28)";
+
+        if (state === "LISTENING") {
+          primaryColor = "255, 170, 0"; // Warm Amber
+          glowColor = "rgba(255, 170, 0, 0.32)";
+        } else if (state === "THINKING") {
+          primaryColor = "163, 113, 247"; // Neural Violet
+          glowColor = "rgba(163, 113, 247, 0.35)";
+        } else if (state === "SPEAKING") {
+          primaryColor = "0, 245, 255"; // Bright Electric Cyan
+          glowColor = "rgba(0, 245, 255, 0.45)";
+        }
+
+        // 1. Holographic Sphere Glass Ambient Body
+        const radialGlow = ctx.createRadialGradient(cx, cy, dynamicRadius * 0.15, cx, cy, dynamicRadius * 1.3);
+        radialGlow.addColorStop(0, `rgba(${primaryColor}, ${0.12 + this.smoothedAmp * 0.2})`);
+        radialGlow.addColorStop(0.65, `rgba(${primaryColor}, ${0.04 + this.smoothedAmp * 0.08})`);
+        radialGlow.addColorStop(1, "transparent");
+
+        ctx.fillStyle = radialGlow;
+        ctx.beginPath();
+        ctx.arc(cx, cy, dynamicRadius * 1.35, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Translucent Glass Sphere Perimeter & Refraction Rim
+        ctx.strokeStyle = `rgba(${primaryColor}, ${0.25 + this.smoothedAmp * 0.35})`;
+        ctx.lineWidth = 1.8;
+        ctx.shadowColor = `rgba(${primaryColor}, 0.8)`;
+        ctx.shadowBlur = 18 * (1 + this.smoothedAmp);
+        ctx.beginPath();
+        ctx.arc(cx, cy, dynamicRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // 3. Orbiting Concentric 3D Perspective Rings
+        const rotSpeed = state === "THINKING" ? 0.025 : (state === "SPEAKING" ? 0.018 : 0.007);
+        this.ringAngle1 += rotSpeed;
+        this.ringAngle2 -= rotSpeed * 0.8;
+        this.ringAngle3 += rotSpeed * 0.6;
+        this.ringAngle4 -= rotSpeed * 1.1;
+
+        // Equatorial Ring (Tilted 3D Ellipse)
+        this.drawTiltedRing(cx, cy, dynamicRadius * 1.12, dynamicRadius * 0.42, this.ringAngle1, `rgba(${primaryColor}, ${0.4 + this.smoothedBass * 0.5})`, 2);
+        
+        // Polar Ring (Cross-Angle Ellipse)
+        this.drawTiltedRing(cx, cy, dynamicRadius * 0.45, dynamicRadius * 1.08, this.ringAngle2, `rgba(${primaryColor}, ${0.35 + this.smoothedMid * 0.45})`, 1.5);
+
+        // Gyroscope Tilted Angle 1 (45 deg)
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(0.785);
+        this.drawTiltedRing(0, 0, dynamicRadius * 0.95, dynamicRadius * 0.35, this.ringAngle3, `rgba(${primaryColor}, ${0.3 + this.smoothedTreble * 0.4})`, 1.5, true);
+        ctx.restore();
+
+        // Gyroscope Tilted Angle 2 (-45 deg)
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-0.785);
+        this.drawTiltedRing(0, 0, dynamicRadius * 0.85, dynamicRadius * 0.32, this.ringAngle4, `rgba(${primaryColor}, ${0.25 + this.smoothedAmp * 0.3})`, 1.2);
+        ctx.restore();
+
+        // 4. Flowing Audio Waveform / Energy Ribbon Inside the Sphere
+        this.drawInnerWaveform(cx, cy, dynamicRadius * 0.72, timeDomainData, primaryColor);
+
+        // 5. Orbiting 3D Particle Cloud & Energy Trails
+        this.drawParticles(cx, cy, dynamicRadius, primaryColor);
+
+        // 6. Central Neural Emblem / JARVIS Arc Core
+        this.drawCentralEmblem(cx, cy, dynamicRadius * 0.22, primaryColor, timestamp);
+      }
+
+      drawTiltedRing(cx, cy, rx, ry, rotationAngle, color, width, dashed = false) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rotationAngle);
+        ctx.beginPath();
+        if (dashed) {
+          ctx.setLineDash([8, 12]);
+        } else {
+          ctx.setLineDash([]);
+        }
+        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.stroke();
+
+        // Orbiting energy node along the ring
+        const nodeAngle = rotationAngle * 2.2;
+        const nx = Math.cos(nodeAngle) * rx;
+        const ny = Math.sin(nodeAngle) * ry;
+        ctx.fillStyle = "#fff";
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(nx, ny, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+      }
+
+      drawInnerWaveform(cx, cy, maxRadius, timeDomain, primaryColor) {
+        const ctx = this.ctx;
+        const points = 64;
+        ctx.save();
+        ctx.beginPath();
+
+        const step = (Math.PI * 2) / points;
+        for (let i = 0; i <= points; i++) {
+          const angle = i * step;
+          let offset = 0;
+
+          if (timeDomain && timeDomain.length > 0) {
+            const dataIndex = Math.floor((i / points) * (timeDomain.length / 2));
+            const norm = (timeDomain[dataIndex] - 128) / 128;
+            offset = norm * (maxRadius * 0.35) * (0.3 + this.smoothedAmp * 0.7);
+          } else {
+            offset = Math.sin(angle * 5 + performance.now() * 0.005) * (maxRadius * 0.12 * this.smoothedAmp);
+          }
+
+          const r = maxRadius + offset;
+          const x = cx + Math.cos(angle) * r;
+          const y = cy + Math.sin(angle) * r;
+
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+
+        ctx.closePath();
+        ctx.strokeStyle = `rgba(${primaryColor}, ${0.55 + this.smoothedAmp * 0.45})`;
+        ctx.lineWidth = 2.2;
+        ctx.shadowColor = `rgba(${primaryColor}, 0.8)`;
+        ctx.shadowBlur = 14;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+
+      drawParticles(cx, cy, sphereRadius, primaryColor) {
+        const ctx = this.ctx;
+        const speedMultiplier = 1 + (this.smoothedAmp * 2.2);
+
+        for (const p of this.particles) {
+          p.theta += p.speed * speedMultiplier;
+          
+          // 3D spherical coordinates projected
+          const r = sphereRadius * p.radiusRatio;
+          const x = cx + r * Math.sin(p.phi) * Math.cos(p.theta);
+          const y = cy + r * Math.sin(p.phi) * Math.sin(p.theta);
+          const depth = Math.cos(p.phi); // -1 (back) to +1 (front)
+
+          const apparentSize = p.size * (1 + depth * 0.3);
+          const apparentAlpha = Math.max(0.1, (p.alpha + (this.smoothedTreble * 0.4)) * (0.6 + depth * 0.4));
+
+          ctx.fillStyle = `rgba(${primaryColor}, ${apparentAlpha})`;
+          ctx.beginPath();
+          ctx.arc(x, y, apparentSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      drawCentralEmblem(cx, cy, radius, primaryColor, timestamp) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        const scale = 1 + (this.smoothedBass * 0.25);
+        ctx.scale(scale, scale);
+
+        // Core Outer Ring
+        ctx.strokeStyle = `rgba(${primaryColor}, 0.8)`;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = `rgba(${primaryColor}, 0.9)`;
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 3 Orbiting Segments
+        const segRot = timestamp * 0.002;
+        ctx.rotate(segRot);
+        for (let i = 0; i < 3; i++) {
+          const a = (i * Math.PI * 2) / 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, radius * 0.7, a, a + 1.2);
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+
+        // Inner Glowing Reactor Core
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.shadowBlur = 24;
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
+    /**
+     * Text-To-Speech Service with Natural British English Default
+     * Synchronizes word boundaries via Web Speech API 'onboundary' event
+     */
+    class TTSService {
+      constructor() {
+        this.synth = window.speechSynthesis;
+        this.voices = [];
+        this.selectedVoice = null;
+        this.isSpeaking = false;
+        this.rate = 0.94; // Calm, articulate cadence
+        this.pitch = 0.88; // Mature, intelligent, low-to-mid pitch
+        this.currentUtterance = null;
+        this.onWordBoundary = null;
+        this.onFinish = null;
+
+        if (this.synth) {
+          this.loadVoices();
+          if (this.synth.onvoiceschanged !== undefined) {
+            this.synth.onvoiceschanged = () => this.loadVoices();
+          }
+        }
+      }
+
+      loadVoices() {
+        if (!this.synth) return;
+        this.voices = this.synth.getVoices();
+        const voiceSelect = document.getElementById("voiceSelect");
+        if (!voiceSelect) return;
+
+        voiceSelect.innerHTML = "";
+
+        // Look for best British male voices
+        let bestVoice = null;
+        for (const v of this.voices) {
+          const opt = document.createElement("option");
+          opt.value = v.name;
+          opt.textContent = `${v.name} (${v.lang})`;
+          voiceSelect.appendChild(opt);
+
+          const nameLower = v.name.toLowerCase();
+          const isUK = v.lang.startsWith("en-GB") || v.lang.startsWith("en_GB");
+
+          if (!bestVoice && isUK && (nameLower.includes("george") || nameLower.includes("ryan") || nameLower.includes("oliver") || nameLower.includes("male") || nameLower.includes("natural") || nameLower.includes("daniel"))) {
+            bestVoice = v;
+          }
+        }
+
+        if (!bestVoice) {
+          bestVoice = this.voices.find(v => v.lang.startsWith("en-GB")) || this.voices.find(v => v.lang.startsWith("en")) || this.voices[0];
+        }
+
+        const savedVoiceName = localStorage.getItem("jarvis_preferred_voice");
+        if (savedVoiceName) {
+          const found = this.voices.find(v => v.name === savedVoiceName);
+          if (found) bestVoice = found;
+        }
+
+        if (bestVoice) {
+          this.selectedVoice = bestVoice;
+          voiceSelect.value = bestVoice.name;
+        }
+
+        voiceSelect.addEventListener("change", (e) => {
+          const v = this.voices.find(v => v.name === e.target.value);
+          if (v) {
+            this.selectedVoice = v;
+            localStorage.setItem("jarvis_preferred_voice", v.name);
+          }
+        });
+      }
+
+      speak(text, onWordBoundary, onFinish) {
+        this.stop();
+        if (!this.synth || !text.trim()) {
+          if (onFinish) onFinish();
+          return;
+        }
+
+        this.onWordBoundary = onWordBoundary;
+        this.onFinish = onFinish;
+
+        const utter = new SpeechSynthesisUtterance(text);
+        if (this.selectedVoice) utter.voice = this.selectedVoice;
+        utter.rate = this.rate;
+        utter.pitch = this.pitch;
+
+        utter.onstart = () => {
+          this.isSpeaking = true;
+          stateMgr.setState("SPEAKING");
+          audioEngine.startSpeechSynthesisAudioFeed();
+          const stopBtn = document.getElementById("stopBtn");
+          if (stopBtn) stopBtn.classList.add("visible");
+        };
+
+        // Real-time word boundary synchronization
+        utter.onboundary = (event) => {
+          if (event.name === "word") {
+            if (this.onWordBoundary) {
+              this.onWordBoundary(event.charIndex, event.charLength || 0);
+            }
+          }
+        };
+
+        utter.onend = () => {
+          this.cleanup();
+          if (this.onFinish) this.onFinish();
+        };
+
+        utter.onerror = (err) => {
+          console.warn("TTS error:", err);
+          this.cleanup();
+          if (this.onFinish) this.onFinish();
+        };
+
+        this.currentUtterance = utter;
+        this.synth.speak(utter);
+      }
+
+      stop() {
+        if (this.synth) {
+          this.synth.cancel();
+        }
+        this.cleanup();
+      }
+
+      cleanup() {
+        this.isSpeaking = false;
+        audioEngine.stopSpeechSynthesisAudioFeed();
+        const stopBtn = document.getElementById("stopBtn");
+        if (stopBtn) stopBtn.classList.remove("visible");
+        if (stateMgr.getState() === "SPEAKING") {
+          stateMgr.setState("IDLE");
+        }
+      }
+    }
+
+    const ttsService = new TTSService();
+
+    /**
+     * SpeechSynchronizer: Wraps output text into token elements and advances
+     * word-by-word highlight in lockstep with the spoken audio stream.
+     */
+    class SpeechSynchronizer {
+      static prepareTextContainer(container, text) {
+        container.innerHTML = "";
+        const words = text.split(/(\s+)/);
+        let charCounter = 0;
+        const spans = [];
+
+        for (const token of words) {
+          const span = document.createElement("span");
+          span.className = "speech-word word-pending";
+          span.textContent = token;
+          span.dataset.start = charCounter;
+          span.dataset.end = charCounter + token.length;
+          charCounter += token.length;
+          container.appendChild(span);
+          spans.push(span);
+        }
+
+        return spans;
+      }
+
+      static syncWords(spans, charIndex) {
+        for (const span of spans) {
+          const start = parseInt(span.dataset.start, 10);
+          const end = parseInt(span.dataset.end, 10);
+
+          if (charIndex >= start && charIndex < end) {
+            span.className = "speech-word word-active";
+          } else if (charIndex >= end) {
+            span.className = "speech-word word-spoken";
+          } else {
+            span.className = "speech-word word-pending";
+          }
+        }
+      }
+
+      static finalizeWords(spans) {
+        for (const span of spans) {
+          span.className = "speech-word word-spoken";
+        }
+      }
+    }
+
+    /**
+     * Floating Response Window
+     * Shown ONLY when minimized & actively responding/speaking. Auto-dismisses 3s after speech.
+     */
+    class FloatingResponseManager {
+      constructor() {
+        this.window = document.getElementById("floatingResponseWindow");
+        this.textContainer = document.getElementById("floatingText");
+        this.canvas = document.getElementById("floatingVisualizerCanvas");
+        this.ctx = this.canvas.getContext("2d");
+        this.closeBtn = document.getElementById("floatingCloseBtn");
+        this.restoreBtn = document.getElementById("floatingRestoreBtn");
+        this.dismissTimer = null;
+        this.isMinimized = false;
+
+        this.closeBtn.addEventListener("click", () => this.hide());
+        this.restoreBtn.addEventListener("click", () => this.restore());
+
+        this.renderVisualizer = this.renderVisualizer.bind(this);
+        requestAnimationFrame(this.renderVisualizer);
+      }
+
+      setMinimized(minimized) {
+        this.isMinimized = minimized;
+        const appFrame = document.getElementById("appFrame");
+        if (minimized) {
+          appFrame.style.opacity = "0";
+          appFrame.style.pointerEvents = "none";
+        } else {
+          appFrame.style.opacity = "1";
+          appFrame.style.pointerEvents = "all";
+          this.hide();
+        }
+      }
+
+      show(initialText) {
+        if (!this.isMinimized && !document.hidden) return;
+        this.clearDismissTimer();
+        this.window.style.display = "flex";
+        this.textContainer.textContent = initialText || "";
+      }
+
+      updateText(text) {
+        if (this.window.style.display === "flex") {
+          this.textContainer.textContent = text;
+        }
+      }
+
+      scheduleDismiss(delayMs = 3500) {
+        this.clearDismissTimer();
+        this.dismissTimer = setTimeout(() => {
+          this.hide();
+        }, delayMs);
+      }
+
+      clearDismissTimer() {
+        if (this.dismissTimer) {
+          clearTimeout(this.dismissTimer);
+          this.dismissTimer = null;
+        }
+      }
+
+      hide() {
+        this.clearDismissTimer();
+        this.window.style.display = "none";
+      }
+
+      restore() {
+        this.setMinimized(false);
+      }
+
+      renderVisualizer() {
+        requestAnimationFrame(this.renderVisualizer);
+        if (this.window.style.display !== "flex") return;
+
+        const ctx = this.ctx;
+        const w = this.canvas.width = this.canvas.clientWidth;
+        const h = this.canvas.height = this.canvas.clientHeight;
+        ctx.clearRect(0, 0, w, h);
+
+        const analysis = audioEngine.getAnalysis();
+        const amp = analysis.amplitude;
+        const timeData = analysis.timeDomain;
+
+        ctx.strokeStyle = "#00d2ff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const points = 32;
+        const step = w / points;
+        for (let i = 0; i <= points; i++) {
+          const x = i * step;
+          let val = 0;
+          if (timeData && timeData.length > 0) {
+            val = ((timeData[i * 2] - 128) / 128) * (h * 0.35);
+          } else {
+            val = Math.sin(i * 0.4 + performance.now() * 0.01) * (h * 0.25 * amp);
+          }
+          const y = (h / 2) + val;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+
+        ctx.stroke();
+      }
+    }
+
+    const floatingResp = new FloatingResponseManager();
+
+    // Track tab minimization / visibility change
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && !floatingResp.isMinimized) {
+        floatingResp.hide();
+      }
+    });
+
+    const minimizeBtn = document.getElementById("minimizeBtn");
+    minimizeBtn.addEventListener("click", () => {
+      floatingResp.setMinimized(true);
+    });
+
+    /**
+     * Wire State Changes to UI Status Pill
+     */
+    stateMgr.subscribe((newState) => {
+      const statePill = document.getElementById("statePill");
+      const statePillText = document.getElementById("statePillText");
+      if (statePill && statePillText) {
+        statePill.className = `state-pill ${newState.toLowerCase()}`;
+        statePillText.textContent = newState;
+      }
+    });
+
+    // Initialize visualizer
+    const sphereVisualizer = new SphereVisualizer("jarvisCoreCanvas");
+
+    /**
+     * Chat & Interaction Controller
+     */
     const chatContainer = document.getElementById("chatContainer");
     const promptInput = document.getElementById("promptInput");
     const sendBtn = document.getElementById("sendBtn");
     const micBtn = document.getElementById("micBtn");
+    const stopBtn = document.getElementById("stopBtn");
     const modeBadge = document.getElementById("modeBadge");
     const confirmModal = document.getElementById("confirmModal");
     const modalDetails = document.getElementById("modalDetails");
@@ -614,11 +1811,19 @@
 
     async function sendPrompt(text) {
       if (!text.trim()) return;
+      ttsService.stop();
+
       appendMessage("user", text);
       promptInput.value = "";
+      stateMgr.setState("THINKING");
 
       const jarvisContent = appendMessage("jarvis", "");
       let activeProgress = null;
+      let fullAccumulatedText = "";
+
+      if (floatingResp.isMinimized || document.hidden) {
+        floatingResp.show("Processing request...");
+      }
 
       try {
         const response = await fetch("/api/chat/stream", {
@@ -666,8 +1871,10 @@
                   activeProgress.remove();
                   activeProgress = null;
                 }
-                jarvisContent.textContent += ev.text;
+                fullAccumulatedText += ev.text;
+                jarvisContent.textContent = fullAccumulatedText;
                 chatContainer.scrollTop = chatContainer.scrollHeight;
+                floatingResp.updateText(fullAccumulatedText);
               } else if (ev.type === "confirm_required") {
                 currentRequestId = ev.requestId;
                 modalDetails.textContent = `${ev.details} (Action: ${ev.action})`;
@@ -677,6 +1884,7 @@
                   activeProgress.remove();
                   activeProgress = null;
                 }
+                stateMgr.setState("IDLE");
                 const errDiv = document.createElement("div");
                 errDiv.className = "error-card";
                 errDiv.style.cssText = "color: #ff6b6b; background: rgba(255, 107, 107, 0.1); border: 1px solid rgba(255, 107, 107, 0.3); padding: 10px 14px; border-radius: 8px; margin-top: 8px; font-size: 13px; line-height: 1.5;";
@@ -688,9 +1896,28 @@
                   activeProgress.remove();
                   activeProgress = null;
                 }
-                if (!jarvisContent.textContent.trim() && ev.fullText && !jarvisContent.querySelector(".error-card")) {
-                  jarvisContent.textContent = ev.fullText;
+                const finalText = ev.fullText || fullAccumulatedText;
+                if (finalText && !jarvisContent.querySelector(".error-card")) {
+                  // Synchronized Speech Reveal
+                  const spans = SpeechSynchronizer.prepareTextContainer(jarvisContent, finalText);
+                  floatingResp.updateText(finalText);
+
+                  ttsService.speak(
+                    finalText,
+                    (charIndex) => {
+                      SpeechSynchronizer.syncWords(spans, charIndex);
+                    },
+                    () => {
+                      SpeechSynchronizer.finalizeWords(spans);
+                      stateMgr.setState("IDLE");
+                      floatingResp.scheduleDismiss(3500);
+                    }
+                  );
+                } else {
+                  stateMgr.setState("IDLE");
+                  floatingResp.scheduleDismiss(3000);
                 }
+
                 if (ev.sources && ev.sources.length > 0) {
                   const sourcesDiv = document.createElement("div");
                   sourcesDiv.className = "sources-list";
@@ -705,17 +1932,14 @@
                   }
                   jarvisContent.appendChild(sourcesDiv);
                 }
-                // Speak response with TTS if enabled
-                if ('speechSynthesis' in window && ev.fullText) {
-                  const utter = new SpeechSynthesisUtterance(ev.fullText);
-                  window.speechSynthesis.speak(utter);
-                }
               }
             }
           }
         }
       } catch (err) {
+        stateMgr.setState("IDLE");
         jarvisContent.textContent = "Error executing request: " + err.message;
+        floatingResp.scheduleDismiss(3000);
       }
     }
 
@@ -724,7 +1948,12 @@
       if (e.key === "Enter") sendPrompt(promptInput.value);
     });
 
-    // Voice Push-to-Talk via Web Speech API
+    stopBtn.addEventListener("click", () => {
+      ttsService.stop();
+      fetch("/api/voice/stop", { method: "POST" }).catch(() => {});
+    });
+
+    // Push-to-Talk Voice Input
     let recognition = null;
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -732,7 +1961,9 @@
       recognition.continuous = false;
       recognition.interimResults = false;
 
-      recognition.onstart = () => {
+      recognition.onstart = async () => {
+        stateMgr.setState("LISTENING");
+        await audioEngine.connectMicrophone();
         micBtn.classList.add("active");
         promptInput.placeholder = "Listening, Sir...";
       };
@@ -744,8 +1975,12 @@
       };
 
       recognition.onend = () => {
+        audioEngine.disconnectMicrophone();
         micBtn.classList.remove("active");
         promptInput.placeholder = "Ask Jarvis, calculate, inspect project, or speak...";
+        if (stateMgr.getState() === "LISTENING") {
+          stateMgr.setState("IDLE");
+        }
       };
 
       micBtn.addEventListener("click", () => {
@@ -782,6 +2017,77 @@
         });
       }
     });
+
+    // Model Profile Switcher Modal Logic
+    const modelModal = document.getElementById("modelModal");
+    const modelConfigBtn = document.getElementById("modelConfigBtn");
+    const btnModelCancel = document.getElementById("btnModelCancel");
+    const btnModelSave = document.getElementById("btnModelSave");
+    const fastModelSelect = document.getElementById("fastModelSelect");
+    const agentModelSelect = document.getElementById("agentModelSelect");
+
+    modelConfigBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/models");
+        const data = await res.json();
+        
+        fastModelSelect.innerHTML = "";
+        agentModelSelect.innerHTML = "";
+
+        for (const m of data.catalog || []) {
+          const val = `${m.providerID}/${m.id}`;
+          const label = `${m.name || m.id} (${m.providerID})`;
+
+          const optF = document.createElement("option");
+          optF.value = JSON.stringify({ providerID: m.providerID, modelID: m.id });
+          optF.textContent = label;
+          if (data.configured?.fast?.modelID === m.id) optF.selected = true;
+          fastModelSelect.appendChild(optF);
+
+          const optA = document.createElement("option");
+          optA.value = JSON.stringify({ providerID: m.providerID, modelID: m.id });
+          optA.textContent = label;
+          if (data.configured?.agent?.modelID === m.id) optA.selected = true;
+          agentModelSelect.appendChild(optA);
+        }
+
+        modelModal.style.display = "flex";
+      } catch (err) {
+        console.error("Failed to load models:", err);
+      }
+    });
+
+    btnModelCancel.addEventListener("click", () => {
+      modelModal.style.display = "none";
+    });
+
+    btnModelSave.addEventListener("click", async () => {
+      try {
+        const fast = JSON.parse(fastModelSelect.value);
+        const agent = JSON.parse(agentModelSelect.value);
+
+        await fetch("/api/models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fast, agent })
+        });
+
+        modelModal.style.display = "none";
+      } catch (err) {
+        console.error("Failed to save models:", err);
+      }
+    });
+
+    // Load initial system status
+    fetch("/api/status")
+      .then(res => res.json())
+      .then(data => {
+        const opencodeStatus = document.getElementById("opencodeStatus");
+        if (opencodeStatus && data.opencode?.ok) {
+          opencodeStatus.innerHTML = `<span class="status-indicator"></span> Connected (v${data.opencode.version})`;
+        }
+      })
+      .catch(() => {});
   </script>
 </body>
 </html>
