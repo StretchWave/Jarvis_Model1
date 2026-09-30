@@ -160,11 +160,17 @@ async function runSmokeTests() {
   const altOcId = await altJarvis.sessionMgr.ensureOpenCodeSession(activeAltSession.id);
 
   // Verify switchSessionModel sends selected model profile to OpenCode
-  const switchSuccess = await altJarvis.opencode.switchSessionModel(altOcId, {
-    providerID: "opencode",
-    id: "longcat-2.5-preview-free",
-    variant: "default",
-  });
+  let switchSuccess = false;
+  try {
+    await altJarvis.opencode.switchSessionModel(altOcId, {
+      providerID: "opencode",
+      id: "longcat-2.5-preview-free",
+      variant: "default",
+    });
+    switchSuccess = true;
+  } catch (err: any) {
+    console.error("switchSessionModel failed:", err.message);
+  }
   assert(switchSuccess === true, "Switched active OpenCode session to configured alternate model profile");
   altJarvis.shutdown();
 
@@ -198,7 +204,7 @@ async function runSmokeTests() {
     JSON.stringify({
       dataDir: testDir,
       databasePath: path.join(testDir, "dead.db"),
-      opencode: { serviceFile: deadService },
+      opencode: { serviceFile: deadService, disableGlobalDiscovery: true },
       models: {
         fast: { providerID: "opencode", modelID: "mimo-v2.6-flash-free" },
         agent: { providerID: "opencode", modelID: "mimo-v2.6-flash-free" },

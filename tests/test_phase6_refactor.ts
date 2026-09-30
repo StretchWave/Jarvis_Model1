@@ -151,7 +151,10 @@ async function runPhase6RefactorTests() {
   // Setup mock OpenCode server returning completed message for ocTargetSession
   let promptCallCount = 0;
   const mockServer = http.createServer((req, res) => {
-    if (req.url === `/api/session/${ocTargetSession}` && req.method === "GET") {
+    if (req.url === "/api/info" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, version: "2.0.15", pid: 8888 }));
+    } else if (req.url === `/api/session/${ocTargetSession}` && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ id: ocTargetSession, title: "Background Session" }));
     } else if (req.url === `/api/session/${ocTargetSession}/message` && req.method === "GET") {
@@ -160,10 +163,25 @@ async function runPhase6RefactorTests() {
         { role: "user", content: "Original task prompt" },
         { role: "assistant", content: [{ type: "text", text: "Task finished while UI was away, Sir." }] },
       ]));
-    } else if (req.url?.includes("/prompt")) {
+    } else if (req.url?.includes("/prompt") && req.method === "POST") {
       promptCallCount++;
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true }));
+      let body = "";
+      req.on("data", chunk => body += chunk);
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(body);
+          if (!parsed.prompt || !parsed.prompt.text) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Missing prompt.text" }));
+            return;
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true }));
+        } catch {
+          res.writeHead(400);
+          res.end();
+        }
+      });
     } else {
       res.writeHead(404);
       res.end();

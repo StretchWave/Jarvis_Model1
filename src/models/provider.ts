@@ -436,6 +436,22 @@ export class OpenCodeModelProvider implements ModelProvider {
       return;
     }
 
+    // Validate that the model exists in the OpenCode catalog
+    const catalog = await this.client.listModels().catch(() => []);
+    if (catalog.length > 0) {
+      const match = catalog.find(
+        m => m.providerID === this.modelProfile.providerID &&
+             (m.id === this.modelProfile.modelID || m.modelID === this.modelProfile.modelID)
+      );
+      if (!match) {
+        yield {
+          type: "error",
+          error: `Configured model "${this.modelProfile.providerID}/${this.modelProfile.modelID}" is not available in OpenCode catalog`,
+        };
+        return;
+      }
+    }
+
     let ocSessionId: string;
     let shouldCleanup = false;
 

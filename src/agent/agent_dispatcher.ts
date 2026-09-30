@@ -4,22 +4,24 @@
  * Orchestrates deep reasoning and coding tasks with OpenCode:
  * - Compact context assembly (user, project, memories, active task, rules)
  * - Logical session mapping to OpenCode
- * - SSE event translation to safe progress indicators
+ * - OpenCode primary agent selection
+ * - Safe progress indicators
  * - Safe streaming without raw internal chain-of-thought exposure
+ * - Permission confirmation flow
  */
 
 import { SessionManager } from "../session_manager.ts";
 import { MemoryManager } from "../memory/memory_manager.ts";
-import { OpenCodeClient } from "../opencode_client.ts";
+import { OpenCodeClient, type OpenCodeModelRef } from "../opencode_client.ts";
 import { formatContextPrompt } from "../personality.ts";
 import { Logger } from "../logger.ts";
-import { extractAssistantText } from "../models/provider.ts";
 import { type OpenCodeModelProfile } from "../config.ts";
 
 export type AgentEvent =
   | { type: "progress"; message: string }
   | { type: "tool_activity"; tool: string; status: "started" | "running" | "completed" }
   | { type: "token"; text: string }
+  | { type: "confirm_required"; action: string; details: string; requestId: string }
   | { type: "done"; fullText: string }
   | { type: "error"; error: string };
 
@@ -41,32 +43,38 @@ export class AgentDispatcher {
     this.memoryMgr = memoryMgr;
     this.client = client;
     this.logger = logger.forComponent("AgentDispatcher");
-    this.agentModelProfile = agentModelProfile || {
-      providerID: "opencode",
-      modelID: "mimo-v2.6-flash-free",
-      variant: "default",
-    };
+    this.agentModelProfile = agentModelProfile;
+  }
+
+  public setAgentModelProfile(profile: OpenCodeModelProfile): void {
+    this.agentModelProfile = profile;
+  }
+
+  public getAgentModelProfile(): OpenCodeModelProfile | undefined {
+    return this.agentModelProfile;
   }
 
   /**
-   * Safely translate raw OpenCode SSE events into human-friendly, safe progress indicators.
-   * Internal chain-of-thought, raw prompts, and sensitive tool arguments are completely suppressed.
+   * Translate raw OpenCode SSE events into friendly, high-level user status messages.
+   * Suppresses raw chain-of-thought, file dumps, and JSON payloads.
    */
-  public translateEvent(event: { event: string; data: any; id?: string }, ocSessionId: string): AgentEvent | null {
-    const data = event.data;
+  public translateEvent(rawEvent: { event: string; data: any }, targetSessionId: string): AgentEvent | null {
+    const { event, data } = rawEvent;
     if (!data) return null;
 
-    // Filter by session if session ID is provided in data
-    if (data.sessionId && data.sessionId !== ocSessionId && data.session_id !== ocSessionId) {
+    // Filter events to target session
+    const evSessionId = data.sessionID || data.sessionId || data.data?.sessionID || data.data?.sessionId;
+    if (evSessionId && evSessionId !== targetSessionId) {
       return null;
     }
 
-    const eventType = (event.event || data.type || "").toLowerCase();
+    const eventType = String(data.type || event || "").toLowerCase();
 
-    // 1. Tool Call / Execution events
-    const toolName = (data.tool || data.name || data.call?.name || "").toLowerCase();
-    if (toolName || eventType.includes("tool")) {
-      if (toolName.includes("read") || toolName.includes("file") || toolName.includes("view")) {
+    // 1. Tool Call Events
+    if (eventType.includes("tool") || data.tool || data.name || data.call) {
+      const toolName = String(data.tool || data.name || data.call?.name || "").toLowerCase();
+
+      if (toolName.includes("read") || toolName.includes("view") || toolName.includes("cat")) {
         return { type: "progress", message: "Reading project files..." };
       }
       if (toolName.includes("blueprint") || toolName.includes("unreal") || toolName.includes("uasset")) {
@@ -105,12 +113,19 @@ export class AgentDispatcher {
     userPrompt: string,
     jarvisSessionId: string,
     projectId?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onPermissionRequest?: (perm: {
+      opencodeSessionId: string;
+      opencodeRequestId: string;
+      action: string;
+      details?: string;
+      resources?: string[];
+    }) => Promise<"once" | "always" | "reject">
   ): AsyncIterable<AgentEvent> {
     this.logger.info(`Starting Agent task in session ${jarvisSessionId}: "${userPrompt.substring(0, 60)}..."`);
     yield { type: "progress", message: "Connecting to OpenCode engine..." };
 
-    // 1. Ensure active OpenCode session (reuse dedicated task/project session)
+    // 1. Ensure active OpenCode session
     let ocSessionId: string;
     try {
       ocSessionId = await this.sessionMgr.ensureOpenCodeSession(jarvisSessionId);
@@ -121,7 +136,7 @@ export class AgentDispatcher {
 
     // 2. Assemble compact context package
     const project = projectId ? this.memoryMgr.getProject(projectId) : null;
-    const memories = this.memoryMgr.recall(userPrompt, projectId, 3).map(m => ({
+    const memories = this.memoryMgr.recall(userPrompt, projectId, 3).map((m) => ({
       category: m.category,
       key: m.key,
       content: m.content,
@@ -144,7 +159,7 @@ export class AgentDispatcher {
     // 3. Genuine real-time streaming via OpenCode executePromptStream
     let accumulatedText = "";
     try {
-      const modelRef = this.agentModelProfile
+      const modelRef: OpenCodeModelRef | undefined = this.agentModelProfile
         ? {
             providerID: this.agentModelProfile.providerID,
             id: this.agentModelProfile.modelID,
@@ -152,11 +167,22 @@ export class AgentDispatcher {
           }
         : undefined;
 
+      const targetAgent = this.agentModelProfile?.agentID || "build";
+
       for await (const ev of this.client.executePromptStream(ocSessionId, packagedPrompt, {
         model: modelRef,
+        agent: targetAgent,
         signal,
+        onPermissionRequest,
       })) {
-        if (ev.type === "progress") {
+        if (ev.type === "permission_request") {
+          yield {
+            type: "confirm_required",
+            action: ev.action,
+            details: ev.details || `Permission required for ${ev.action}`,
+            requestId: ev.requestId,
+          };
+        } else if (ev.type === "progress") {
           yield { type: "progress", message: ev.message };
         } else if (ev.type === "tool_activity") {
           const translated = this.translateEvent({ event: "tool_call", data: { tool: ev.tool } }, ocSessionId);
@@ -178,24 +204,11 @@ export class AgentDispatcher {
         }
       }
 
-      // If stream ended without explicit done event but accumulated text exists
-      yield { type: "tool_activity", tool: "OpenCode Engine", status: "completed" };
-      if (accumulatedText) {
-        yield { type: "done", fullText: accumulatedText };
-        return;
-      }
-
-      // Fallback: check messages if SSE was completely silent
-      const messages = await this.client.getMessages(ocSessionId);
-      const fallbackText = extractAssistantText(messages);
-      if (fallbackText) {
-        yield { type: "token", text: fallbackText };
-        yield { type: "done", fullText: fallbackText };
-      } else {
-        yield { type: "done", fullText: "Task processing completed." };
+      if (!accumulatedText) {
+        yield { type: "done", fullText: "" };
       }
     } catch (err: any) {
-      this.logger.error("Agent execution error:", { error: err.message });
+      this.logger.error("Agent execution failed:", err);
       yield { type: "error", error: `Agent execution failed: ${err.message}` };
     }
   }

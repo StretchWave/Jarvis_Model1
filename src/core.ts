@@ -12,7 +12,7 @@ import { loadConfig, type JarvisConfig } from "./config.ts";
 import { Logger, rootLogger } from "./logger.ts";
 import { Database } from "./database.ts";
 import { Router, type RoutingDecision } from "./router.ts";
-import { OpenCodeClient } from "./opencode_client.ts";
+import { OpenCodeClient, type OpenCodeModelRef } from "./opencode_client.ts";
 import { SessionManager } from "./session_manager.ts";
 import { MemoryManager } from "./memory/memory_manager.ts";
 import { PermissionManager, type PermissionCheckResult } from "./permissions.ts";
@@ -38,6 +38,18 @@ export type JarvisEvent =
   | { type: "done"; fullText: string; sources?: SearchResult[] }
   | { type: "error"; error: string };
 
+export interface PendingPermission {
+  jarvisRequestId: string;
+  sessionId: string;
+  opencodeSessionId?: string;
+  opencodeRequestId?: string;
+  action: string;
+  resources?: string[];
+  details?: string;
+  expiresAt: number;
+  resolve: (decision: "once" | "always" | "reject") => void;
+}
+
 export class JarvisCore {
   public config: JarvisConfig;
   public logger: Logger;
@@ -57,7 +69,7 @@ export class JarvisCore {
   public artifacts: ArtifactManager;
   public pulse: ProactivePulse;
 
-  private pendingConfirmations: Map<string, { action: string; resolve: (approved: boolean) => void }> = new Map();
+  private pendingPermissions: Map<string, PendingPermission> = new Map();
 
   constructor(customConfigPath?: string) {
     this.config = loadConfig(customConfigPath);
@@ -67,7 +79,12 @@ export class JarvisCore {
     if (this.config.models.agentWeight !== undefined) {
       this.router.setAgentWeight(this.config.models.agentWeight);
     }
-    this.opencode = new OpenCodeClient(this.config.opencode.serviceFile, this.logger);
+    this.opencode = new OpenCodeClient(this.config.opencode.serviceFile, this.logger, {
+      connectTimeoutMs: this.config.opencode.connectTimeoutMs,
+      spawnIfDown: this.config.opencode.spawnIfDown,
+      cliPath: this.config.opencode.cliPath,
+      disableGlobalDiscovery: this.config.opencode.disableGlobalDiscovery,
+    });
     this.sessionMgr = new SessionManager(this.db, this.opencode, this.logger);
     this.memoryMgr = new MemoryManager(this.db, this.logger);
     this.perms = new PermissionManager(this.db, this.logger);
@@ -95,24 +112,27 @@ export class JarvisCore {
 
   public async initialize(): Promise<void> {
     this.logger.info(`Initializing JARVIS Core v${this.config.version}...`);
-    await this.opencode.ensureDaemonRunning();
+
+    const cliFound = this.opencode.findCliExecutable();
+    const daemonStarted = await this.opencode.ensureDaemonRunning();
     const ocHealth = await this.opencode.health();
+
     if (ocHealth.ok) {
       this.logger.info(`Connected to OpenCode daemon at ${ocHealth.url} (version: ${ocHealth.version}, pid: ${ocHealth.pid})`);
 
-      // Validate configured OpenCode model profiles
+      // 1. Validate configured OpenCode model profiles
       try {
-        const available = await this.opencode.listModels();
+        const availableModels = await this.opencode.listModels();
         const fastTarget = `${this.config.models.fast.providerID}/${this.config.models.fast.modelID}`;
         const agentTarget = `${this.config.models.agent.providerID}/${this.config.models.agent.modelID}`;
 
-        const hasFast = available.some(m => `${m.providerID}/${m.id}` === fastTarget || m.id === this.config.models.fast.modelID);
-        const hasAgent = available.some(m => `${m.providerID}/${m.id}` === agentTarget || m.id === this.config.models.agent.modelID);
+        const hasFast = availableModels.some((m) => `${m.providerID}/${m.id}` === fastTarget || m.id === this.config.models.fast.modelID);
+        const hasAgent = availableModels.some((m) => `${m.providerID}/${m.id}` === agentTarget || m.id === this.config.models.agent.modelID);
 
         if (hasFast) {
           this.logger.info(`Verified FAST model profile: ${fastTarget}`);
         } else {
-          this.logger.warn(`Configured FAST model '${fastTarget}' not found in OpenCode catalog (${available.length} models available).`);
+          this.logger.warn(`Configured FAST model '${fastTarget}' not found in OpenCode catalog (${availableModels.length} models available).`);
         }
 
         if (hasAgent) {
@@ -123,8 +143,42 @@ export class JarvisCore {
       } catch (err: any) {
         this.logger.warn("OpenCode model catalog check failed:", { error: err.message });
       }
+
+      // 2. Validate configured OpenCode agent profile
+      try {
+        const availableAgents = await this.opencode.listAgents({ primaryOnly: true });
+        const targetAgent = this.config.models.agent.agentID || "build";
+        const hasAgentId = availableAgents.some((a) => a.id === targetAgent);
+
+        if (hasAgentId) {
+          this.logger.info(`Verified AGENT primary agent: ${targetAgent}`);
+        } else {
+          this.logger.warn(`Configured primary agent '${targetAgent}' not found in OpenCode agents catalog (${availableAgents.map((a) => a.id).join(", ")}).`);
+        }
+      } catch (err: any) {
+        this.logger.warn("OpenCode agent catalog check failed:", { error: err.message });
+      }
+
+      // 3. Reconcile active session model state across startup (Requirement 15)
+      try {
+        const active = await this.sessionMgr.getOrCreateActiveSession("general");
+        if (active.opencode_session_id) {
+          await this.opencode.switchSessionModel(active.opencode_session_id, {
+            providerID: this.config.models.fast.providerID,
+            id: this.config.models.fast.modelID,
+            variant: this.config.models.fast.variant || "default",
+          }).catch(() => {});
+        }
+      } catch {}
     } else {
-      this.logger.warn(`OpenCode daemon not currently connected: ${ocHealth.error}`);
+      // Diagnostic human-readable error reporting (Requirement 19)
+      if (!cliFound) {
+        this.logger.error("OpenCode is not installed on this system or the CLI executable could not be resolved. Please install OpenCode or configure OPENCODE_CLI_PATH.");
+      } else if (!daemonStarted && this.config.opencode.spawnIfDown) {
+        this.logger.error(`OpenCode daemon failed to start via ${cliFound}. Please run 'opencode service start' or 'npm run daemon:opencode' manually.`);
+      } else {
+        this.logger.warn(`OpenCode daemon not currently connected: ${ocHealth.error}`);
+      }
     }
   }
 
@@ -149,7 +203,7 @@ export class JarvisCore {
         this.logger,
         this.config.models.agent
       );
-      this.logger.info(`Updated active AGENT model to ${this.config.models.agent.providerID}/${this.config.models.agent.modelID}`);
+      this.logger.info(`Updated active AGENT model to ${this.config.models.agent.providerID}/${this.config.models.agent.modelID} (agent: ${this.config.models.agent.agentID || "build"})`);
     }
     if (typeof models.agentWeight === "number") {
       this.config.models.agentWeight = models.agentWeight;
@@ -160,6 +214,97 @@ export class JarvisCore {
       this.config.models.creativityWeight = models.creativityWeight;
       this.logger.info(`Updated model creativity weight to ${models.creativityWeight}`);
     }
+  }
+
+  public async switchSessionModel(sessionId: string, model: OpenCodeModelRef): Promise<void> {
+    const ocSessionId = await this.sessionMgr.ensureOpenCodeSession(sessionId);
+    await this.opencode.switchSessionModel(ocSessionId, model);
+  }
+
+  public async switchSessionAgent(sessionId: string, agentId: string): Promise<void> {
+    const ocSessionId = await this.sessionMgr.ensureOpenCodeSession(sessionId);
+    await this.opencode.switchSessionAgent(ocSessionId, agentId);
+  }
+
+  public requestConfirmation(params: {
+    sessionId: string;
+    opencodeSessionId?: string;
+    opencodeRequestId?: string;
+    action: string;
+    resources?: string[];
+    details?: string;
+    timeoutMs?: number;
+  }): { requestId: string; promise: Promise<"once" | "always" | "reject"> } {
+    const jarvisRequestId = `perm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const timeoutMs = params.timeoutMs ?? 30000;
+    const expiresAt = Date.now() + timeoutMs;
+
+    let resolver!: (decision: "once" | "always" | "reject") => void;
+    const promise = new Promise<"once" | "always" | "reject">((resolve) => {
+      resolver = resolve;
+    });
+
+    const timer = setTimeout(() => {
+      if (this.pendingPermissions.has(jarvisRequestId)) {
+        this.pendingPermissions.delete(jarvisRequestId);
+        this.logger.warn(`Permission request ${jarvisRequestId} timed out; defaulting to 'reject'`);
+        resolver("reject");
+      }
+    }, timeoutMs);
+
+    this.pendingPermissions.set(jarvisRequestId, {
+      jarvisRequestId,
+      sessionId: params.sessionId,
+      opencodeSessionId: params.opencodeSessionId,
+      opencodeRequestId: params.opencodeRequestId,
+      action: params.action,
+      resources: params.resources,
+      details: params.details,
+      expiresAt,
+      resolve: (decision: "once" | "always" | "reject") => {
+        clearTimeout(timer);
+        resolver(decision);
+      },
+    });
+
+    return { requestId: jarvisRequestId, promise };
+  }
+
+  public getPendingPermissions(): PendingPermission[] {
+    return Array.from(this.pendingPermissions.values());
+  }
+
+  public confirmAction(requestId: string, decision: "once" | "always" | "reject" | boolean): boolean {
+    const pending = this.pendingPermissions.get(requestId);
+    if (!pending) return false;
+
+    if (Date.now() > pending.expiresAt) {
+      this.pendingPermissions.delete(requestId);
+      pending.resolve("reject");
+      return false;
+    }
+
+    let dec: "once" | "always" | "reject";
+    if (typeof decision === "boolean") {
+      dec = decision ? "once" : "reject";
+    } else {
+      dec = decision;
+    }
+
+    this.pendingPermissions.delete(requestId);
+    pending.resolve(dec);
+    return true;
+  }
+
+  private async waitForConfirmation(requestId: string, timeoutMs: number = 30000): Promise<boolean> {
+    const { promise } = this.requestConfirmation({
+      sessionId: "direct",
+      action: requestId,
+      details: `Permission requested for direct action ${requestId}`,
+      timeoutMs,
+    });
+    const decision = await promise;
+    return decision !== "reject";
   }
 
   /**
@@ -211,16 +356,21 @@ export class JarvisCore {
       // Permission Check
       const permCheck = this.perms.evaluate(act.type, act.payload);
       if (!permCheck.allowed && permCheck.requiresPrompt) {
-        const reqId = `req_${Date.now()}`;
+        const { requestId: reqId, promise: permPromise } = this.requestConfirmation({
+          sessionId: session.id,
+          action: act.type,
+          details: permCheck.reason,
+        });
+
         yield {
           type: "confirm_required",
           action: act.type,
           details: permCheck.reason,
           requestId: reqId,
         };
-        // Wait for confirmation or timeout
-        const confirmed = await this.waitForConfirmation(reqId);
-        if (!confirmed) {
+
+        const decisionResult = await permPromise;
+        if (decisionResult === "reject") {
           this.inspector.failRun(taskRun.runId, `Action '${act.type}' was not confirmed`);
           yield { type: "done", fullText: `Action '${act.type}' was not confirmed, Sir.` };
           return;
@@ -333,8 +483,29 @@ export class JarvisCore {
     // =====================================================================
     if (decision.route === "AGENT") {
       let agentFinalText = "";
-      for await (const ev of this.agentDispatcher.executeTask(raw, session.id, projectId, signal)) {
-        if (ev.type === "progress") {
+
+      const onPerm = async (p: {
+        opencodeSessionId: string;
+        opencodeRequestId: string;
+        action: string;
+        details?: string;
+        resources?: string[];
+      }): Promise<"once" | "always" | "reject"> => {
+        const { promise } = this.requestConfirmation({
+          sessionId: session.id,
+          opencodeSessionId: p.opencodeSessionId,
+          opencodeRequestId: p.opencodeRequestId,
+          action: p.action,
+          details: p.details || `Permission requested for ${p.action}`,
+          resources: p.resources,
+        });
+        return await promise;
+      };
+
+      for await (const ev of this.agentDispatcher.executeTask(raw, session.id, projectId, signal, onPerm)) {
+        if (ev.type === "confirm_required") {
+          yield { type: "confirm_required", action: ev.action, details: ev.details, requestId: ev.requestId };
+        } else if (ev.type === "progress") {
           this.inspector.updateOperation(taskRun.runId, ev.message);
           yield { type: "progress", message: ev.message };
         } else if (ev.type === "tool_activity") {
@@ -357,35 +528,6 @@ export class JarvisCore {
       }
       return;
     }
-  }
-
-  public confirmAction(requestId: string, approved: boolean): boolean {
-    const pending = this.pendingConfirmations.get(requestId);
-    if (pending) {
-      pending.resolve(approved);
-      this.pendingConfirmations.delete(requestId);
-      return true;
-    }
-    return false;
-  }
-
-  private waitForConfirmation(requestId: string, timeoutMs: number = 30000): Promise<boolean> {
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        if (this.pendingConfirmations.has(requestId)) {
-          this.pendingConfirmations.delete(requestId);
-          resolve(false);
-        }
-      }, timeoutMs);
-
-      this.pendingConfirmations.set(requestId, {
-        action: requestId,
-        resolve: (approved: boolean) => {
-          clearTimeout(timer);
-          resolve(approved);
-        },
-      });
-    });
   }
 
   public async recoverSession(sessionId: string): Promise<RecoveryResult> {

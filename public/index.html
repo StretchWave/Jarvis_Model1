@@ -949,6 +949,17 @@
       background: rgba(255, 255, 255, 0.18);
     }
 
+    .btn-always {
+      background: rgba(163, 113, 247, 0.22);
+      border: 1px solid var(--accent-purple);
+      color: #d2a8ff;
+    }
+
+    .btn-always:hover {
+      background: rgba(163, 113, 247, 0.38);
+      box-shadow: 0 0 12px rgba(163, 113, 247, 0.5);
+    }
+
     /* Responsive adjustments */
     @media (max-width: 900px) {
       .sidebar {
@@ -1126,7 +1137,12 @@
           <span>FAST Conversational Model:</span>
           <span style="font-size: 11px; color: var(--text-muted); text-transform: none;">(Low latency, casual chat)</span>
         </label>
-        <select class="modal-select" id="fastModelSelect"></select>
+        <div style="display: flex; gap: 8px;">
+          <select class="modal-select" id="fastModelSelect" style="flex: 1;"></select>
+          <select class="modal-select" id="fastVariantSelect" style="width: 140px;" title="Model Variant">
+            <option value="default">Default Variant</option>
+          </select>
+        </div>
         <div class="model-badge-info" id="fastModelBadge"></div>
       </div>
 
@@ -1136,18 +1152,34 @@
           <span>AGENT Deep Reasoning & Coding Model:</span>
           <span style="font-size: 11px; color: var(--text-muted); text-transform: none;">(High capacity, tools, multi-step)</span>
         </label>
-        <select class="modal-select" id="agentModelSelect"></select>
+        <div style="display: flex; gap: 8px;">
+          <select class="modal-select" id="agentModelSelect" style="flex: 1;"></select>
+          <select class="modal-select" id="agentVariantSelect" style="width: 140px;" title="Model Variant">
+            <option value="default">Default Variant</option>
+          </select>
+        </div>
         <div class="model-badge-info" id="agentModelBadge"></div>
+      </div>
+
+      <!-- AGENT Primary Agent Selector -->
+      <div class="modal-form-group">
+        <label for="agentAgentSelect">
+          <span>OpenCode Primary Agent:</span>
+          <span style="font-size: 11px; color: var(--text-muted); text-transform: none;">(Discovered primary agent role)</span>
+        </label>
+        <select class="modal-select" id="agentAgentSelect">
+          <option value="build">build (Primary Build Agent)</option>
+        </select>
       </div>
 
       <!-- Model Weight Sliders Section -->
       <div class="weight-section">
-        <div class="weight-title">⚖️ Model & Routing Weights</div>
+        <div class="weight-title">⚖️ Model & Routing Semantics</div>
 
         <!-- Creativity / Temperature Weight -->
         <div class="weight-slider-group">
           <div class="weight-label-row">
-            <span class="weight-name">Creativity Weight (Temperature):</span>
+            <span class="weight-name">Creativity Weight (Generation Temperature):</span>
             <span class="weight-val-badge" id="creativityWeightVal">0.70</span>
           </div>
           <input type="range" class="weight-slider" id="creativityWeightSlider" min="0" max="1" step="0.05" value="0.7">
@@ -1155,12 +1187,15 @@
             <span>0.0 (Deterministic / Exact)</span>
             <span>1.0 (Creative / Exploratory)</span>
           </div>
+          <div class="weight-desc" style="margin-top: 4px;">
+            Controls model generation sampling temperature passed to OpenCode model providers. Lower values ensure reproducible code and exact answers; higher values allow broader linguistic exploration.
+          </div>
         </div>
 
         <!-- Agent vs Fast Routing Weight -->
         <div class="weight-slider-group">
           <div class="weight-label-row">
-            <span class="weight-name">Agent Routing Bias (Task Weight):</span>
+            <span class="weight-name">Agent Routing Bias (Intent Threshold):</span>
             <span class="weight-val-badge" id="agentWeightVal">0.50 (Balanced)</span>
           </div>
           <input type="range" class="weight-slider" id="agentWeightSlider" min="0" max="1" step="0.05" value="0.5">
@@ -1168,11 +1203,14 @@
             <span>0.0 (Fast Bias — Max Speed)</span>
             <span>1.0 (Agent Bias — Deep Reasoning)</span>
           </div>
-          <div class="weight-desc">
-            Elevating Agent Weight routes complex planning, architecture, and multi-step tasks to your AGENT model. Lowering it favors instant sub-second FAST replies.
+          <div class="weight-desc" style="margin-top: 4px;">
+            Controls JARVIS intent classification threshold only. Elevating bias routes borderline ambiguous tasks to multi-step AGENT execution. Lowering it routes requests directly to single-turn FAST execution.
           </div>
         </div>
       </div>
+
+      <!-- Error feedback container -->
+      <div id="modelModalError" style="display: none; color: #ff6b6b; background: rgba(255, 107, 107, 0.12); border: 1px solid rgba(255, 107, 107, 0.35); border-radius: 8px; padding: 10px 14px; font-size: 13px; line-height: 1.4;"></div>
 
       <div class="modal-buttons">
         <button class="btn btn-cancel" id="btnModelCancel">Cancel</button>
@@ -1192,12 +1230,14 @@
         </svg>
         Action Permission Required
       </div>
-      <div id="modalDetails" style="font-size: 14px; color: var(--text);">
+      <div id="modalDetails" style="font-size: 14px; color: var(--text); line-height: 1.5;">
         Jarvis requests permission to perform a privileged action.
       </div>
-      <div class="modal-buttons">
-        <button class="btn btn-cancel" id="btnDeny">Deny</button>
-        <button class="btn btn-approve" id="btnApprove">Approve Action</button>
+      <div id="modalResources" style="display: none; font-size: 12px; color: var(--text-muted); background: rgba(0, 0, 0, 0.3); border-radius: 6px; padding: 8px 10px; font-family: var(--font-mono);"></div>
+      <div class="modal-buttons" style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+        <button class="btn btn-cancel" id="btnDeny">Deny (Reject)</button>
+        <button class="btn btn-approve" id="btnApproveOnce">Approve Once</button>
+        <button class="btn btn-always" id="btnApproveAlways" title="Create durable project-scoped approval in OpenCode">Always Allow</button>
       </div>
     </div>
   </div>
@@ -2356,17 +2396,37 @@
       micBtn.title = "Speech recognition not supported in this browser";
     }
 
-    // Modal Confirmation Actions
-    btnApprove.addEventListener("click", async () => {
-      confirmModal.style.display = "none";
-      if (currentRequestId) {
-        await fetch("/api/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId: currentRequestId, approved: true })
-        });
-      }
-    });
+    // Modal Confirmation Actions: Default to once/reject; only deliberate Always Allow sends 'always'
+    const btnApproveOnce = document.getElementById("btnApproveOnce");
+    const btnApproveAlways = document.getElementById("btnApproveAlways");
+
+    if (btnApproveOnce) {
+      btnApproveOnce.addEventListener("click", async () => {
+        confirmModal.style.display = "none";
+        if (currentRequestId) {
+          await fetch("/api/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requestId: currentRequestId, decision: "once" })
+          }).catch(() => {});
+          currentRequestId = null;
+        }
+      });
+    }
+
+    if (btnApproveAlways) {
+      btnApproveAlways.addEventListener("click", async () => {
+        confirmModal.style.display = "none";
+        if (currentRequestId) {
+          await fetch("/api/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requestId: currentRequestId, decision: "always" })
+          }).catch(() => {});
+          currentRequestId = null;
+        }
+      });
+    }
 
     btnDeny.addEventListener("click", async () => {
       confirmModal.style.display = "none";
@@ -2374,8 +2434,9 @@
         await fetch("/api/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId: currentRequestId, approved: false })
-        });
+          body: JSON.stringify({ requestId: currentRequestId, decision: "reject" })
+        }).catch(() => {});
+        currentRequestId = null;
       }
     });
 
@@ -2385,9 +2446,13 @@
     const btnModelCancel = document.getElementById("btnModelCancel");
     const btnModelSave = document.getElementById("btnModelSave");
     const fastModelSelect = document.getElementById("fastModelSelect");
+    const fastVariantSelect = document.getElementById("fastVariantSelect");
     const agentModelSelect = document.getElementById("agentModelSelect");
+    const agentVariantSelect = document.getElementById("agentVariantSelect");
+    const agentAgentSelect = document.getElementById("agentAgentSelect");
     const fastModelBadge = document.getElementById("fastModelBadge");
     const agentModelBadge = document.getElementById("agentModelBadge");
+    const modelModalError = document.getElementById("modelModalError");
     const creativityWeightSlider = document.getElementById("creativityWeightSlider");
     const creativityWeightVal = document.getElementById("creativityWeightVal");
     const agentWeightSlider = document.getElementById("agentWeightSlider");
@@ -2398,6 +2463,7 @@
     const filterPaidBtn = document.getElementById("filterPaidBtn");
 
     let cachedCatalog = [];
+    let cachedAgents = [];
     let currentConfigured = {};
     let activeCatalogFilter = "all";
 
@@ -2406,6 +2472,35 @@
       const pid = (m.providerID || "").toLowerCase();
       const mid = (m.id || m.modelID || "").toLowerCase();
       return pid === "opencode" || mid.includes("free") || mid === "big-pickle";
+    }
+
+    function updateVariants(selectEl, variantSelectEl, currentVariant) {
+      variantSelectEl.innerHTML = "";
+      if (!selectEl.value) {
+        const opt = document.createElement("option");
+        opt.value = "default";
+        opt.textContent = "default";
+        variantSelectEl.appendChild(opt);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(selectEl.value);
+        const match = cachedCatalog.find(m => m.providerID === parsed.providerID && (m.id === parsed.modelID || m.modelID === parsed.modelID));
+        const variants = (match && match.variants && match.variants.length > 0) ? match.variants : ["default"];
+
+        for (const v of variants) {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = v;
+          if (v === currentVariant) opt.selected = true;
+          variantSelectEl.appendChild(opt);
+        }
+      } catch {
+        const opt = document.createElement("option");
+        opt.value = "default";
+        opt.textContent = "default";
+        variantSelectEl.appendChild(opt);
+      }
     }
 
     function updateModelBadge(selectEl, badgeEl) {
@@ -2429,15 +2524,26 @@
       }
     }
 
+    function renderAgents() {
+      agentAgentSelect.innerHTML = "";
+      const primaryAgents = cachedAgents.length > 0 ? cachedAgents : [{ id: "build", name: "Build" }, { id: "plan", name: "Plan" }];
+      for (const a of primaryAgents) {
+        const opt = document.createElement("option");
+        opt.value = a.id;
+        opt.textContent = `${a.id}${a.description ? ` — ${a.description.substring(0, 45)}` : " (Primary)"}`;
+        if (currentConfigured.agent?.agentID === a.id) {
+          opt.selected = true;
+        }
+        agentAgentSelect.appendChild(opt);
+      }
+    }
+
     function renderDropdowns(filter) {
       activeCatalogFilter = filter;
       [filterAllBtn, filterFreeBtn, filterPaidBtn].forEach(b => b.classList.remove("active"));
       if (filter === "all") filterAllBtn.classList.add("active");
       else if (filter === "free") filterFreeBtn.classList.add("active");
       else if (filter === "paid") filterPaidBtn.classList.add("active");
-
-      const currentFastVal = fastModelSelect.value;
-      const currentAgentVal = agentModelSelect.value;
 
       [fastModelSelect, agentModelSelect].forEach((selectEl, idx) => {
         const isFast = idx === 0;
@@ -2451,7 +2557,7 @@
           grpFree.label = `🆓 OpenCode Free Tier (${freeModels.length})`;
           for (const m of freeModels) {
             const opt = document.createElement("option");
-            opt.value = JSON.stringify({ providerID: m.providerID, modelID: m.id });
+            opt.value = JSON.stringify({ providerID: m.providerID, modelID: m.id || m.modelID });
             opt.textContent = `🆓 ${m.name || m.id} (Free Tier)`;
             grpFree.appendChild(opt);
           }
@@ -2463,7 +2569,7 @@
           grpPaid.label = `💳 Paid / External Providers (${paidModels.length})`;
           for (const m of paidModels) {
             const opt = document.createElement("option");
-            opt.value = JSON.stringify({ providerID: m.providerID, modelID: m.id });
+            opt.value = JSON.stringify({ providerID: m.providerID, modelID: m.id || m.modelID });
             opt.textContent = `💳 ${m.name || m.id} (${m.providerID.toUpperCase()})`;
             grpPaid.appendChild(opt);
           }
@@ -2488,12 +2594,23 @@
         }
       });
 
+      updateVariants(fastModelSelect, fastVariantSelect, currentConfigured.fast?.variant || "default");
+      updateVariants(agentModelSelect, agentVariantSelect, currentConfigured.agent?.variant || "default");
+      renderAgents();
+
       updateModelBadge(fastModelSelect, fastModelBadge);
       updateModelBadge(agentModelSelect, agentModelBadge);
     }
 
-    fastModelSelect.addEventListener("change", () => updateModelBadge(fastModelSelect, fastModelBadge));
-    agentModelSelect.addEventListener("change", () => updateModelBadge(agentModelSelect, agentModelBadge));
+    fastModelSelect.addEventListener("change", () => {
+      updateVariants(fastModelSelect, fastVariantSelect, "default");
+      updateModelBadge(fastModelSelect, fastModelBadge);
+    });
+
+    agentModelSelect.addEventListener("change", () => {
+      updateVariants(agentModelSelect, agentVariantSelect, "default");
+      updateModelBadge(agentModelSelect, agentModelBadge);
+    });
 
     filterAllBtn.addEventListener("click", () => renderDropdowns("all"));
     filterFreeBtn.addEventListener("click", () => renderDropdowns("free"));
@@ -2523,9 +2640,11 @@
 
     modelConfigBtn.addEventListener("click", async () => {
       try {
+        if (modelModalError) modelModalError.style.display = "none";
         const res = await fetch("/api/models");
         const data = await res.json();
         cachedCatalog = data.catalog || [];
+        cachedAgents = data.agents || [];
         currentConfigured = data.configured || {};
 
         // Counts
@@ -2553,20 +2672,47 @@
 
     btnModelCancel.addEventListener("click", () => {
       modelModal.style.display = "none";
+      if (modelModalError) modelModalError.style.display = "none";
     });
 
     btnModelSave.addEventListener("click", async () => {
+      if (modelModalError) modelModalError.style.display = "none";
+      btnModelSave.textContent = "Switching...";
+      btnModelSave.disabled = true;
+
       try {
-        const fast = JSON.parse(fastModelSelect.value);
-        const agent = JSON.parse(agentModelSelect.value);
+        const fastBase = JSON.parse(fastModelSelect.value);
+        const agentBase = JSON.parse(agentModelSelect.value);
+        const fast = {
+          providerID: fastBase.providerID,
+          modelID: fastBase.modelID,
+          variant: fastVariantSelect.value || "default",
+        };
+        const agent = {
+          providerID: agentBase.providerID,
+          modelID: agentBase.modelID,
+          variant: agentVariantSelect.value || "default",
+          agentID: agentAgentSelect.value || "build",
+        };
         const creativityWeight = parseFloat(creativityWeightSlider.value);
         const agentWeight = parseFloat(agentWeightSlider.value);
 
-        await fetch("/api/models", {
+        const resp = await fetch("/api/models", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fast, agent, creativityWeight, agentWeight })
         });
+
+        const respData = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          if (modelModalError) {
+            modelModalError.style.display = "block";
+            modelModalError.textContent = `Switch Error: ${respData.error || "OpenCode rejected model configuration"}`;
+          }
+          btnModelSave.textContent = "Save & Switch";
+          btnModelSave.disabled = false;
+          return;
+        }
 
         currentConfigured.fast = fast;
         currentConfigured.agent = agent;
@@ -2575,7 +2721,13 @@
 
         modelModal.style.display = "none";
       } catch (err) {
-        console.error("Failed to save models:", err);
+        if (modelModalError) {
+          modelModalError.style.display = "block";
+          modelModalError.textContent = `Switch Error: ${err.message}`;
+        }
+      } finally {
+        btnModelSave.textContent = "Save & Switch";
+        btnModelSave.disabled = false;
       }
     });
 

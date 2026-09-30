@@ -132,8 +132,27 @@ async function runOpenCodeGatewayTests() {
 
   // 3. Model Selection & Switching
   console.log("\n▶ Test 3: Model Selection & Dynamic Switching");
-  const switchOk = await client.switchSessionModel(sessionData.id, testModelRef);
-  assert(switchOk === true, `Successfully switched session model to ${testModelRef.providerID}/${testModelRef.id}`);
+  let switchSucceeded = false;
+  try {
+    await client.switchSessionModel(sessionData.id, testModelRef);
+    switchSucceeded = true;
+  } catch (err: any) {
+    console.error("switchSessionModel failed:", err.message);
+  }
+  assert(switchSucceeded === true, `Successfully switched session model to ${testModelRef.providerID}/${testModelRef.id}`);
+
+  // Test 3b: Agent Discovery & Switching
+  const primaryAgents = await client.listAgents({ primaryOnly: true });
+  assert(primaryAgents.length > 0, `Discovered ${primaryAgents.length} usable primary agents from live daemon`);
+  const targetAgent = primaryAgents.find(a => a.id === "build")?.id || primaryAgents[0].id;
+  let agentSwitchSucceeded = false;
+  try {
+    await client.switchSessionAgent(sessionData.id, targetAgent);
+    agentSwitchSucceeded = true;
+  } catch (err: any) {
+    console.error("switchSessionAgent failed:", err.message);
+  }
+  assert(agentSwitchSucceeded === true, `Successfully switched session agent to '${targetAgent}' on live daemon`);
 
   // Clean up direct test session
   await client.deleteSession(sessionData.id);
@@ -220,7 +239,12 @@ async function runOpenCodeGatewayTests() {
       password: "dummy",
     })
   );
-  const deadClient = new OpenCodeClient(deadServiceFile, logger);
+  const deadClient = new OpenCodeClient({
+    serviceFile: deadServiceFile,
+    disableGlobalDiscovery: true,
+    spawnIfDown: false,
+    connectTimeoutMs: 1000,
+  }, logger);
   const deadProvider = new OpenCodeModelProvider(
     {
       client: deadClient,

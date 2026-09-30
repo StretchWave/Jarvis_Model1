@@ -6,6 +6,7 @@ export interface OpenCodeModelProfile {
   providerID: string;
   modelID: string;
   variant?: string;
+  agentID?: string;
   temperature?: number;
   weight?: number;
 }
@@ -38,6 +39,7 @@ export interface JarvisConfig {
     cliPath?: string;
     spawnIfDown: boolean;
     connectTimeoutMs: number;
+    disableGlobalDiscovery?: boolean;
   };
   models: JarvisModelsConfig;
   fallbackProvider?: FallbackProviderConfig;
@@ -64,27 +66,58 @@ export interface JarvisConfig {
   };
 }
 
+export function parseSemver(v: string): [number, number, number] {
+  const cleaned = v.replace(/^[v^~]/, "").trim();
+  const parts = cleaned.split(".").map(p => parseInt(p, 10) || 0);
+  return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+}
+
+export function compareSemver(a: string, b: string): number {
+  const [a1, a2, a3] = parseSemver(a);
+  const [b1, b2, b3] = parseSemver(b);
+  if (a1 !== b1) return a1 - b1;
+  if (a2 !== b2) return a2 - b2;
+  return a3 - b3;
+}
+
+export function findOpenCodeCli(home: string = os.homedir()): string | undefined {
+  if (process.env.OPENCODE_CLI_PATH && fs.existsSync(process.env.OPENCODE_CLI_PATH)) {
+    return process.env.OPENCODE_CLI_PATH;
+  }
+  const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+  const cliBase = path.join(appData, "ai.opencode.desktop", "cli");
+  if (fs.existsSync(cliBase)) {
+    try {
+      const dirs = fs.readdirSync(cliBase).filter(d => {
+        try {
+          return fs.statSync(path.join(cliBase, d)).isDirectory();
+        } catch {
+          return false;
+        }
+      });
+      dirs.sort(compareSemver);
+      if (dirs.length > 0) {
+        const highest = dirs[dirs.length - 1];
+        const exe = path.join(cliBase, highest, "opencode-cli.exe");
+        if (fs.existsSync(exe)) return exe;
+      }
+    } catch {}
+  }
+  const localPrograms = path.join(home, "AppData", "Local", "Programs", "@opencodedesktop", "resources", "opencode-cli.exe");
+  if (fs.existsSync(localPrograms)) return localPrograms;
+
+  return undefined;
+}
+
 export function getDefaultConfig(): JarvisConfig {
   const home = os.homedir();
   const defaultDataDir = path.join(process.cwd(), ".jarvis_data");
   
-  // Prefer .local/state/opencode/service.json then fallback to .config/opencode/service.json
+  // Standard OpenCode shared service registration path
   const defaultStateFile = path.join(home, ".local", "state", "opencode", "service.json");
   const fallbackStateFile = path.join(home, ".config", "opencode", "service.json");
   const chosenServiceFile = fs.existsSync(defaultStateFile) ? defaultStateFile : fallbackStateFile;
-
-  // Detect CLI binary if possible
-  const possibleCliPaths = [
-    path.join(home, "AppData", "Roaming", "ai.opencode.desktop", "cli", "2.0.15", "opencode-cli.exe"),
-    path.join(home, "AppData", "Local", "Programs", "@opencodedesktop", "resources", "opencode-cli.exe"),
-  ];
-  let detectedCli: string | undefined;
-  for (const cp of possibleCliPaths) {
-    if (fs.existsSync(cp)) {
-      detectedCli = cp;
-      break;
-    }
-  }
+  const detectedCli = findOpenCodeCli(home);
 
   return {
     version: "1.0.0",
@@ -108,6 +141,7 @@ export function getDefaultConfig(): JarvisConfig {
         providerID: process.env.JARVIS_AGENT_PROVIDER_ID || "opencode",
         modelID: process.env.JARVIS_AGENT_MODEL_ID || "mimo-v2.6-flash-free",
         variant: "default",
+        agentID: process.env.JARVIS_AGENT_ID || "build",
       },
       agentWeight: 0.5,
       creativityWeight: 0.7,

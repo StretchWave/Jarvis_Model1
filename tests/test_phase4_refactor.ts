@@ -108,35 +108,87 @@ async function runPhase4RefactorTests() {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ id: targetSession, title: "Test Session" }));
     } else if (req.url?.includes("/model") && req.method === "POST") {
-      res.writeHead(204);
-      res.end();
+      let body = "";
+      req.on("data", chunk => body += chunk);
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(body);
+          if (!parsed.model || !parsed.model.providerID || !parsed.model.id) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Missing required model fields" }));
+            return;
+          }
+          res.writeHead(204);
+          res.end();
+        } catch {
+          res.writeHead(400);
+          res.end();
+        }
+      });
+    } else if (req.url?.includes("/agent") && req.method === "POST") {
+      let body = "";
+      req.on("data", chunk => body += chunk);
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(body);
+          if (!parsed.agent || typeof parsed.agent !== "string") {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Missing or invalid 'agent'" }));
+            return;
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true, agent: parsed.agent }));
+        } catch {
+          res.writeHead(400);
+          res.end();
+        }
+      });
+    } else if (req.url === "/api/agent") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify([{ id: "build", name: "Build", mode: "primary", hidden: false }]));
     } else if (req.url === "/api/model") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify([{ providerID: "opencode", id: "mimo-v2.6-flash-free" }]));
-    } else if (req.url?.startsWith(`/api/session/${targetSession}/prompt`)) {
-      // Simulate tool progress event over SSE while prompt is being processed
-      setTimeout(() => {
-        if (sseClientRes) {
-          sseClientRes.write("event: message\n");
-          sseClientRes.write("data: " + JSON.stringify({ sessionId: targetSession, tool: "read_file" }) + "\n\n");
-        }
-      }, 50);
+    } else if (req.url?.startsWith(`/api/session/${targetSession}/prompt`) && req.method === "POST") {
+      let body = "";
+      req.on("data", chunk => body += chunk);
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(body);
+          if (!parsed.prompt || !parsed.prompt.text) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Missing prompt.text" }));
+            return;
+          }
 
-      setTimeout(() => {
-        if (sseClientRes) {
-          sseClientRes.write("event: message\n");
-          sseClientRes.write("data: " + JSON.stringify({ sessionId: targetSession, tool: "inspect_blueprint" }) + "\n\n");
-        }
-      }, 100);
+          // Simulate tool progress event over SSE while prompt is being processed
+          setTimeout(() => {
+            if (sseClientRes) {
+              sseClientRes.write("event: message\n");
+              sseClientRes.write("data: " + JSON.stringify({ sessionId: targetSession, tool: "read_file" }) + "\n\n");
+            }
+          }, 50);
 
-      setTimeout(() => {
-        if (sseClientRes) {
-          sseClientRes.write("event: message\n");
-          sseClientRes.write("data: " + JSON.stringify({ type: "session.execution.succeeded", sessionId: targetSession }) + "\n\n");
+          setTimeout(() => {
+            if (sseClientRes) {
+              sseClientRes.write("event: message\n");
+              sseClientRes.write("data: " + JSON.stringify({ sessionId: targetSession, tool: "inspect_blueprint" }) + "\n\n");
+            }
+          }, 100);
+
+          setTimeout(() => {
+            if (sseClientRes) {
+              sseClientRes.write("event: message\n");
+              sseClientRes.write("data: " + JSON.stringify({ type: "session.execution.succeeded", sessionId: targetSession }) + "\n\n");
+            }
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true }));
+          }, 200);
+        } catch {
+          res.writeHead(400);
+          res.end();
         }
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true }));
-      }, 200);
+      });
     } else if (req.url === "/api/event") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
