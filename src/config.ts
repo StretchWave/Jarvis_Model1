@@ -3,10 +3,12 @@ import * as path from "node:path";
 import * as os from "node:os";
 
 export interface FastModelConfig {
-  provider: "mock" | "openai" | "anthropic" | "gemini" | "groq" | "custom";
+  provider: "openai-compatible" | "mock" | "unconfigured" | string;
   model: string;
-  apiKey?: string;
   baseURL?: string;
+  apiKeyEnv?: string;
+  apiKey?: string;
+  headers?: Record<string, string>;
 }
 
 export interface JarvisConfig {
@@ -34,6 +36,13 @@ export interface JarvisConfig {
     name: string;
     userTitle: string;
     conciseByDefault: boolean;
+  };
+  artifacts?: {
+    storageDir?: string;
+  };
+  proactivePulse?: {
+    enabled: boolean;
+    intervalMs?: number;
   };
 }
 
@@ -71,10 +80,18 @@ export function getDefaultConfig(): JarvisConfig {
       spawnIfDown: true,
       connectTimeoutMs: 5000,
     },
-    fastModel: {
-      provider: "mock",
-      model: "fast-default",
-    },
+    fastModel: process.env.JARVIS_FAST_PROVIDER === "mock"
+      ? {
+          provider: "mock",
+          model: "mock-fast",
+        }
+      : {
+          provider: "openai-compatible",
+          model: process.env.FAST_MODEL || "gpt-4o-mini",
+          baseURL: process.env.FAST_MODEL_BASE_URL || "https://api.openai.com/v1",
+          apiKeyEnv: "FAST_MODEL_API_KEY",
+          apiKey: process.env.FAST_MODEL_API_KEY || process.env.OPENAI_API_KEY,
+        },
     agentModel: {
       provider: "opencode",
     },
@@ -86,6 +103,13 @@ export function getDefaultConfig(): JarvisConfig {
       name: "JARVIS",
       userTitle: "Sir",
       conciseByDefault: true,
+    },
+    artifacts: {
+      storageDir: path.join(defaultDataDir, "artifacts"),
+    },
+    proactivePulse: {
+      enabled: false,
+      intervalMs: 60000,
     },
   };
 }
@@ -106,6 +130,8 @@ export function loadConfig(configPath?: string): JarvisConfig {
         agentModel: { ...defaults.agentModel, ...(userCfg.agentModel || {}) },
         logging: { ...defaults.logging, ...(userCfg.logging || {}) },
         personality: { ...defaults.personality, ...(userCfg.personality || {}) },
+        artifacts: { ...defaults.artifacts, ...(userCfg.artifacts || {}) },
+        proactivePulse: { ...defaults.proactivePulse, ...(userCfg.proactivePulse || {}) },
       };
     } catch (err) {
       console.warn(`[Config] Failed to parse ${targetPath}, using defaults:`, err);

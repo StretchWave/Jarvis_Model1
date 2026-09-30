@@ -10,12 +10,21 @@ const execAsync = promisify(exec);
 
 const suites = [
   "tests/test_phase1.ts",
+  "tests/test_phase1_refactor.ts",
   "tests/test_phase2.ts",
+  "tests/test_phase2_refactor.ts",
   "tests/test_phase3.ts",
+  "tests/test_phase3_refactor.ts",
   "tests/test_phase4.ts",
+  "tests/test_phase4_refactor.ts",
   "tests/test_phase5.ts",
+  "tests/test_phase5_refactor.ts",
   "tests/test_phase6.ts",
+  "tests/test_phase6_refactor.ts",
   "tests/test_phase7.ts",
+  "tests/test_phase7_refactor.ts",
+  "tests/test_phase8_refactor.ts",
+  "tests/test_phase9_refactor.ts",
   "tests/test_final_acceptance.ts",
 ];
 

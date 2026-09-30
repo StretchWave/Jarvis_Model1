@@ -49,6 +49,7 @@ async function runTests() {
   assert(cfg.personality.userTitle === "Sir", "Config defaults userTitle to Sir");
   assert(typeof cfg.opencode.serviceFile === "string" && cfg.opencode.serviceFile.length > 0, "OpenCode serviceFile path resolved");
   assert(cfg.agentModel.provider === "opencode", "Agent model provider is set to opencode");
+  assert(cfg.fastModel.provider === "openai-compatible", "Fast model provider defaults to real 'openai-compatible' in production");
 
   // -----------------------------------------------------------------
   // 2. Logger & Secret Redaction

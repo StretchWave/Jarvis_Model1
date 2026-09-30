@@ -18,10 +18,16 @@ import { MemoryManager } from "./memory/memory_manager.ts";
 import { PermissionManager, type PermissionCheckResult } from "./permissions.ts";
 import { DirectTools } from "./tools/direct_tools.ts";
 import { WebSearchEngine, type SearchResult } from "./search.ts";
-import { MockFastProvider, OpenAICompatibleProvider, type ModelProvider } from "./models/provider.ts";
+import { type ModelProvider } from "./models/provider.ts";
+import { createFastModelProvider } from "./models/factory.ts";
 import { AgentDispatcher, type AgentEvent } from "./agent/agent_dispatcher.ts";
 import { VoiceService } from "./voice/voice_service.ts";
+import { ConversationContextManager } from "./context/conversation_context.ts";
+import { SkillRegistry } from "./skills/registry.ts";
+import { RunInspector, type TaskRun, type RecoveryResult } from "./inspector/run_inspector.ts";
 import { getSystemPrompt } from "./personality.ts";
+import { ArtifactManager } from "./artifacts/artifact_manager.ts";
+import { ProactivePulse } from "./proactive/pulse.ts";
 
 export type JarvisEvent =
   | { type: "route"; route: string; reason: string; latencyMs: number }
@@ -45,6 +51,11 @@ export class JarvisCore {
   public fastModel: ModelProvider;
   public agentDispatcher: AgentDispatcher;
   public voice: VoiceService;
+  public contextMgr: ConversationContextManager;
+  public skills: SkillRegistry;
+  public inspector: RunInspector;
+  public artifacts: ArtifactManager;
+  public pulse: ProactivePulse;
 
   private pendingConfirmations: Map<string, { action: string; resolve: (approved: boolean) => void }> = new Map();
 
@@ -58,22 +69,19 @@ export class JarvisCore {
     this.memoryMgr = new MemoryManager(this.db, this.logger);
     this.perms = new PermissionManager(this.db, this.logger);
     this.searchEngine = new WebSearchEngine(this.logger);
+    this.contextMgr = new ConversationContextManager(this.db, this.logger);
+    this.skills = new SkillRegistry(this.logger);
+    this.inspector = new RunInspector(this.db, this.logger);
     this.agentDispatcher = new AgentDispatcher(this.sessionMgr, this.memoryMgr, this.opencode, this.logger);
     this.voice = new VoiceService(this.logger);
+    this.artifacts = new ArtifactManager(this.db, this.logger, this.config.artifacts?.storageDir);
+    this.pulse = new ProactivePulse(this.db, this.opencode, this.logger, {
+      enabled: this.config.proactivePulse?.enabled ?? false,
+      intervalMs: this.config.proactivePulse?.intervalMs,
+    });
 
-    // Initialize Fast Provider
-    if (this.config.fastModel.provider === "openai" && this.config.fastModel.apiKey) {
-      this.fastModel = new OpenAICompatibleProvider(
-        {
-          model: this.config.fastModel.model,
-          apiKey: this.config.fastModel.apiKey,
-          baseURL: this.config.fastModel.baseURL,
-        },
-        this.logger
-      );
-    } else {
-      this.fastModel = new MockFastProvider();
-    }
+    // Initialize Fast Model Provider via unified factory
+    this.fastModel = createFastModelProvider(this.config.fastModel, this.logger);
   }
 
   public async initialize(): Promise<void> {
@@ -100,6 +108,9 @@ export class JarvisCore {
 
     // 1. Get or create active session
     const session = sessionId ? this.db.getSession(sessionId) || (await this.sessionMgr.getOrCreateActiveSession("general", projectId)) : await this.sessionMgr.getOrCreateActiveSession("general", projectId);
+    if (projectId || session.project_id) {
+      this.contextMgr.setProject(session.id, projectId || session.project_id);
+    }
 
     // 2. Intelligent Directive Processing (Memory & Tasks)
     this.memoryMgr.processDirectives(raw, projectId || session.project_id);
@@ -113,11 +124,20 @@ export class JarvisCore {
       latencyMs: decision.latencyMs,
     };
 
+    // 4. Initialize Run Inspector tracking
+    const taskRun = this.inspector.startRun({
+      sessionId: session.id,
+      route: decision.route,
+      modelProvider: decision.route === "FAST" ? this.fastModel.name : (decision.route === "AGENT" ? "OpenCode" : undefined),
+      initialOperation: `Routing: ${decision.route}`,
+    });
+
     // =====================================================================
     // PATH 1: DIRECT PATH (Deterministic OS/PC operations)
     // =====================================================================
     if (decision.route === "DIRECT" && decision.directAction) {
       const act = decision.directAction;
+      this.inspector.updateOperation(taskRun.runId, `Executing deterministic command: ${act.type}`);
       yield { type: "progress", message: `Executing deterministic command: ${act.type}...` };
 
       // Permission Check
@@ -133,6 +153,7 @@ export class JarvisCore {
         // Wait for confirmation or timeout
         const confirmed = await this.waitForConfirmation(reqId);
         if (!confirmed) {
+          this.inspector.failRun(taskRun.runId, `Action '${act.type}' was not confirmed`);
           yield { type: "done", fullText: `Action '${act.type}' was not confirmed, Sir.` };
           return;
         }
@@ -141,71 +162,11 @@ export class JarvisCore {
       const toolStart = Date.now();
       let toolMessage = "";
 
-      switch (act.type) {
-        case "time": {
-          const res = DirectTools.getTime();
-          toolMessage = res.message;
-          break;
-        }
-        case "date": {
-          const res = DirectTools.getDate();
-          toolMessage = res.message;
-          break;
-        }
-        case "calculator": {
-          const res = DirectTools.calculate(act.payload.expression);
-          toolMessage = res.message;
-          break;
-        }
-        case "system_info": {
-          const res = DirectTools.getSystemInfo();
-          toolMessage = res.message;
-          break;
-        }
-        case "volume_set": {
-          const res = await DirectTools.volume("set", act.payload.level);
-          toolMessage = res.message;
-          break;
-        }
-        case "volume_get":
-        case "volume_mute": {
-          const res = await DirectTools.volume("mute");
-          toolMessage = res.message;
-          break;
-        }
-        case "media_play_pause": {
-          const res = await DirectTools.media("play_pause");
-          toolMessage = res.message;
-          break;
-        }
-        case "media_next": {
-          const res = await DirectTools.media("next");
-          toolMessage = res.message;
-          break;
-        }
-        case "media_prev": {
-          const res = await DirectTools.media("prev");
-          toolMessage = res.message;
-          break;
-        }
-        case "app_open": {
-          const res = await DirectTools.openApp(act.payload.appName);
-          toolMessage = res.message;
-          break;
-        }
-        case "app_close": {
-          const res = await DirectTools.closeApp(act.payload.appName);
-          toolMessage = res.message;
-          break;
-        }
-        case "web_open": {
-          const res = await DirectTools.openUrl(act.payload.url);
-          toolMessage = res.message;
-          break;
-        }
-        default: {
-          toolMessage = `Executed direct command: ${act.type}`;
-        }
+      const skillRes = await this.skills.executeAction(act.type, act.payload);
+      if (skillRes.message !== `Unknown skill action: ${act.type}`) {
+        toolMessage = skillRes.message;
+      } else {
+        toolMessage = `Executed direct command: ${act.type}`;
       }
 
       this.db.recordToolHistory({
@@ -220,6 +181,11 @@ export class JarvisCore {
         created_at: Date.now(),
       });
 
+      this.inspector.recordToolEvent(taskRun.runId, act.type, "completed", toolMessage);
+      this.contextMgr.addTurn(session.id, "user", raw, "DIRECT");
+      this.contextMgr.addTurn(session.id, "assistant", toolMessage, "DIRECT");
+      this.inspector.completeRun(taskRun.runId, toolMessage);
+
       yield { type: "token", text: toolMessage };
       yield { type: "done", fullText: toolMessage };
       return;
@@ -229,6 +195,7 @@ export class JarvisCore {
     // PATH 2: SEARCH PATH (Factual web queries)
     // =====================================================================
     if (decision.route === "SEARCH") {
+      this.inspector.updateOperation(taskRun.runId, "Searching the web for fresh information");
       yield { type: "progress", message: "Searching the web for fresh information..." };
       const q = decision.searchQuery || raw;
       const searchRes = await this.searchEngine.executeSearch(q);
@@ -245,6 +212,11 @@ export class JarvisCore {
         created_at: Date.now(),
       });
 
+      this.inspector.recordToolEvent(taskRun.runId, "web_search", "completed", q);
+      this.contextMgr.addTurn(session.id, "user", raw, "SEARCH");
+      this.contextMgr.addTurn(session.id, "assistant", searchRes.answer, "SEARCH");
+      this.inspector.completeRun(taskRun.runId, searchRes.answer);
+
       yield { type: "token", text: searchRes.answer };
       yield { type: "done", fullText: searchRes.answer, sources: searchRes.sources };
       return;
@@ -254,22 +226,31 @@ export class JarvisCore {
     // PATH 3: FAST PATH (Conversations, definitions, small talk)
     // =====================================================================
     if (decision.route === "FAST") {
+      this.inspector.updateOperation(taskRun.runId, "Synthesizing conversational response");
       yield { type: "progress", message: "Synthesizing conversational response..." };
       let fullText = "";
 
-      for await (const ev of this.fastModel.chat({
-        messages: [
-          { role: "system", content: getSystemPrompt(this.config.personality.userTitle, this.config.personality.conciseByDefault) },
-          { role: "user", content: raw },
-        ],
-      }, signal)) {
+      const chatMessages = this.contextMgr.buildPromptMessages(raw, session.id, {
+        systemPrompt: getSystemPrompt(this.config.personality.userTitle, this.config.personality.conciseByDefault),
+        maxTurns: 6,
+        activeProject: projectId || session.project_id,
+      });
+
+      for await (const ev of this.fastModel.chat({ messages: chatMessages }, signal)) {
         if (ev.type === "token" && ev.text) {
           fullText += ev.text;
           yield { type: "token", text: ev.text };
         } else if (ev.type === "done") {
-          yield { type: "done", fullText: ev.fullText || fullText };
+          const finalAns = ev.fullText || fullText;
+          this.contextMgr.addTurn(session.id, "user", raw, "FAST");
+          this.contextMgr.addTurn(session.id, "assistant", finalAns, "FAST");
+          this.inspector.completeRun(taskRun.runId, finalAns);
+          yield { type: "done", fullText: finalAns };
         } else if (ev.type === "error") {
+          this.inspector.failRun(taskRun.runId, ev.error || "Fast model error");
           yield { type: "error", error: ev.error || "Fast model error" };
+          yield { type: "done", fullText: `FAST model error: ${ev.error}` };
+          return;
         }
       }
       return;
@@ -279,12 +260,28 @@ export class JarvisCore {
     // PATH 4: AGENT PATH (Deep reasoning, OpenCode coding & project tools)
     // =====================================================================
     if (decision.route === "AGENT") {
+      let agentFinalText = "";
       for await (const ev of this.agentDispatcher.executeTask(raw, session.id, projectId, signal)) {
-        if (ev.type === "progress") yield { type: "progress", message: ev.message };
-        else if (ev.type === "tool_activity") yield { type: "tool", name: ev.tool, status: ev.status };
-        else if (ev.type === "token") yield { type: "token", text: ev.text };
-        else if (ev.type === "done") yield { type: "done", fullText: ev.fullText };
-        else if (ev.type === "error") yield { type: "error", error: ev.error };
+        if (ev.type === "progress") {
+          this.inspector.updateOperation(taskRun.runId, ev.message);
+          yield { type: "progress", message: ev.message };
+        } else if (ev.type === "tool_activity") {
+          this.inspector.recordToolEvent(taskRun.runId, ev.tool, ev.status);
+          yield { type: "tool", name: ev.tool, status: ev.status };
+        } else if (ev.type === "token") {
+          yield { type: "token", text: ev.text };
+        } else if (ev.type === "done") {
+          agentFinalText = ev.fullText;
+          this.inspector.completeRun(taskRun.runId, agentFinalText);
+          yield { type: "done", fullText: ev.fullText };
+        } else if (ev.type === "error") {
+          this.inspector.failRun(taskRun.runId, ev.error);
+          yield { type: "error", error: ev.error };
+        }
+      }
+      if (agentFinalText) {
+        this.contextMgr.addTurn(session.id, "user", raw, "AGENT");
+        this.contextMgr.addTurn(session.id, "assistant", agentFinalText, "AGENT");
       }
       return;
     }
@@ -319,8 +316,13 @@ export class JarvisCore {
     });
   }
 
+  public async recoverSession(sessionId: string): Promise<RecoveryResult> {
+    return await this.inspector.recoverSession(sessionId, this.opencode);
+  }
+
   public shutdown(): void {
     this.logger.info("Shutting down JARVIS Core.");
+    this.pulse.stop();
     this.db.close();
   }
 }

@@ -41,13 +41,17 @@ async function runAcceptanceTests() {
 
   const testDb = path.join(testDir, "acceptance.db");
 
-  // Create custom config for testing
+  // Create custom config for testing (explicitly using mock for offline test suite)
   const configPath = path.join(testDir, "test_config.json");
   fs.writeFileSync(
     configPath,
     JSON.stringify({
       dataDir: testDir,
       databasePath: testDb,
+      fastModel: {
+        provider: "mock",
+        model: "mock-fast",
+      },
       logging: { level: "error", format: "pretty" },
     })
   );
@@ -177,6 +181,33 @@ async function runAcceptanceTests() {
   // Cleanup test session from daemon
   await restartedJarvis.opencode.deleteSession(recoveredSesId);
   restartedJarvis.shutdown();
+
+  // -------------------------------------------------------------
+  // Test 9: Section 20 Failure Test - Disable/Unconfigure FAST Provider
+  // -------------------------------------------------------------
+  console.log("\n▶ Acceptance Test 9: Unconfigured FAST Model Failure Handling");
+  const unconfiguredConfigPath = path.join(testDir, "unconfigured_config.json");
+  fs.writeFileSync(
+    unconfiguredConfigPath,
+    JSON.stringify({
+      dataDir: testDir,
+      databasePath: path.join(testDir, "unconfigured.db"),
+      fastModel: {
+        provider: "unconfigured",
+        model: "none",
+      },
+      logging: { level: "error", format: "pretty" },
+    })
+  );
+  const unconfiguredJarvis = new JarvisCore(unconfiguredConfigPath);
+  const unconfiguredEvents = await collectEvents(unconfiguredJarvis, "Hey Jarvis, what are you doing?");
+  const failureError = unconfiguredEvents.find(e => e.type === "error");
+  assert(failureError !== undefined && failureError.type === "error", "Reported explicit error when FAST provider is disabled/unconfigured");
+  assert(
+    failureError?.type === "error" && failureError.error.includes("FAST model is not configured"),
+    `Clear error message provided without canned fallback: "${failureError?.type === "error" ? failureError.error : ""}"`
+  );
+  unconfiguredJarvis.shutdown();
 
   try {
     fs.rmSync(testDir, { recursive: true, force: true });

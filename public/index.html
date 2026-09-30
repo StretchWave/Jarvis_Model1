@@ -654,6 +654,13 @@
                   jarvisContent.appendChild(activeProgress);
                 }
                 activeProgress.textContent = ev.message;
+              } else if (ev.type === "tool") {
+                if (!activeProgress) {
+                  activeProgress = document.createElement("div");
+                  activeProgress.className = "activity-card";
+                  jarvisContent.appendChild(activeProgress);
+                }
+                activeProgress.textContent = `Tool [${ev.name}]: ${ev.status}`;
               } else if (ev.type === "token") {
                 if (activeProgress) {
                   activeProgress.remove();
@@ -665,7 +672,25 @@
                 currentRequestId = ev.requestId;
                 modalDetails.textContent = `${ev.details} (Action: ${ev.action})`;
                 confirmModal.style.display = "flex";
+              } else if (ev.type === "error") {
+                if (activeProgress) {
+                  activeProgress.remove();
+                  activeProgress = null;
+                }
+                const errDiv = document.createElement("div");
+                errDiv.className = "error-card";
+                errDiv.style.cssText = "color: #ff6b6b; background: rgba(255, 107, 107, 0.1); border: 1px solid rgba(255, 107, 107, 0.3); padding: 10px 14px; border-radius: 8px; margin-top: 8px; font-size: 13px; line-height: 1.5;";
+                errDiv.innerHTML = `<strong>⚠️ Attention:</strong> ${escapeHtml(ev.error)}`;
+                jarvisContent.appendChild(errDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
               } else if (ev.type === "done") {
+                if (activeProgress) {
+                  activeProgress.remove();
+                  activeProgress = null;
+                }
+                if (!jarvisContent.textContent.trim() && ev.fullText && !jarvisContent.querySelector(".error-card")) {
+                  jarvisContent.textContent = ev.fullText;
+                }
                 if (ev.sources && ev.sources.length > 0) {
                   const sourcesDiv = document.createElement("div");
                   sourcesDiv.className = "sources-list";

@@ -18,6 +18,8 @@ yarn-error.log*
 *.local.json
 
 # Test data & Scratch
+.test_*
 .test_data*
 .test_acceptance/
 scratch/
+scratch_*
