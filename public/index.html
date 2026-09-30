@@ -9,16 +9,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #06080e;
-      --bg-deep: #040509;
-      --panel: rgba(10, 15, 26, 0.42);
-      --panel-solid: rgba(12, 18, 30, 0.85);
+      --bg: #05070d;
+      --bg-deep: #030408;
+      --panel: rgba(8, 14, 26, 0.42);
+      --panel-solid: rgba(10, 16, 28, 0.88);
       --panel-border: rgba(0, 210, 255, 0.16);
-      --panel-border-bright: rgba(0, 210, 255, 0.4);
-      --panel-hover: rgba(18, 28, 48, 0.65);
+      --panel-border-bright: rgba(0, 210, 255, 0.45);
+      --panel-hover: rgba(16, 26, 46, 0.65);
       --accent: #00d2ff;
       --accent-bright: #33dcff;
-      --accent-glow: rgba(0, 210, 255, 0.45);
+      --accent-glow: rgba(0, 210, 255, 0.5);
       --accent-dim: #007799;
       --accent-blue: #0077ff;
       --accent-purple: #a371f7;
@@ -58,22 +58,11 @@
       inset: 0;
       pointer-events: none;
       background: 
-        radial-gradient(circle at 50% 50%, rgba(0, 70, 130, 0.15) 0%, transparent 60%),
-        radial-gradient(circle at 20% 20%, rgba(0, 210, 255, 0.05) 0%, transparent 45%),
-        radial-gradient(circle at 80% 80%, rgba(0, 100, 255, 0.06) 0%, transparent 50%),
+        radial-gradient(circle at 60% 50%, rgba(0, 80, 150, 0.18) 0%, transparent 65%),
+        radial-gradient(circle at 20% 20%, rgba(0, 210, 255, 0.06) 0%, transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(0, 100, 255, 0.08) 0%, transparent 55%),
         var(--bg);
       z-index: 0;
-    }
-
-    /* Primary JARVIS Core Canvas - occupies the central background area */
-    #jarvisCoreCanvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 1;
     }
 
     /* App Frame Container */
@@ -88,7 +77,7 @@
     /* Left Sidebar - Transparent HUD */
     .sidebar {
       width: 280px;
-      background: rgba(8, 12, 22, 0.45);
+      background: rgba(7, 11, 20, 0.55);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
       border-right: 1px solid var(--panel-border);
@@ -105,7 +94,7 @@
       align-items: center;
       gap: 12px;
       padding-bottom: 12px;
-      border-bottom: 1px solid rgba(0, 210, 255, 0.1);
+      border-bottom: 1px solid rgba(0, 210, 255, 0.12);
     }
 
     .mini-reactor {
@@ -175,9 +164,9 @@
       box-shadow: 0 0 8px var(--accent);
     }
 
-    .state-pill.speaking .state-dot { background: #00ffaa; box-shadow: 0 0 12px #00ffaa; animation: dot-pulse 0.6s infinite alternate; }
-    .state-pill.listening .state-dot { background: #ffaa00; box-shadow: 0 0 12px #ffaa00; animation: dot-pulse 0.4s infinite alternate; }
-    .state-pill.thinking .state-dot { background: #a371f7; box-shadow: 0 0 12px #a371f7; animation: dot-pulse 0.8s infinite alternate; }
+    .state-pill.speaking .state-dot { background: #00ffaa; box-shadow: 0 0 14px #00ffaa; animation: dot-pulse 0.6s infinite alternate; }
+    .state-pill.listening .state-dot { background: #ffaa00; box-shadow: 0 0 14px #ffaa00; animation: dot-pulse 0.4s infinite alternate; }
+    .state-pill.thinking .state-dot { background: #a371f7; box-shadow: 0 0 14px #a371f7; animation: dot-pulse 0.8s infinite alternate; }
 
     @keyframes dot-pulse {
       0% { transform: scale(0.8); opacity: 0.7; }
@@ -266,13 +255,24 @@
       box-shadow: 0 0 6px var(--accent-green);
     }
 
-    /* Main Center Workspace - Contains Sphere Canvas (behind) & Floating HUD (in front) */
+    /* Main Center Workspace - Holds Background Canvas and Foreground HUD */
     .main-workspace {
       flex: 1;
       display: flex;
       flex-direction: column;
       position: relative;
       overflow: hidden;
+    }
+
+    /* Primary JARVIS Core Canvas - fills the main workspace area directly behind chat */
+    #jarvisCoreCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
     }
 
     /* Top HUD Navigation Bar */
@@ -283,9 +283,10 @@
       align-items: center;
       justify-content: space-between;
       padding: 0 28px;
-      background: rgba(8, 12, 22, 0.38);
+      background: rgba(7, 11, 20, 0.42);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
+      position: relative;
       z-index: 10;
     }
 
@@ -298,7 +299,7 @@
     .topbar-right {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .mode-badge {
@@ -324,13 +325,13 @@
 
     /* Topbar Controls & Voice Selector */
     .topbar-select {
-      background: rgba(14, 20, 36, 0.7);
+      background: rgba(12, 18, 34, 0.75);
       border: 1px solid var(--panel-border);
       border-radius: var(--radius-sm);
       color: var(--text);
       font-family: inherit;
       font-size: 12px;
-      padding: 5px 10px;
+      padding: 6px 10px;
       outline: none;
       cursor: pointer;
       transition: all 0.2s;
@@ -338,7 +339,19 @@
 
     .topbar-select:hover {
       border-color: var(--accent);
-      box-shadow: 0 0 10px var(--accent-glow);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .test-voice-btn {
+      background: rgba(0, 210, 255, 0.15);
+      border: 1px solid var(--accent);
+      color: var(--accent-bright);
+      font-weight: 600;
+    }
+
+    .test-voice-btn:hover {
+      background: rgba(0, 210, 255, 0.28);
+      box-shadow: 0 0 14px var(--accent-glow);
     }
 
     .window-btn {
@@ -346,7 +359,7 @@
       height: 32px;
       border-radius: 6px;
       border: 1px solid var(--panel-border);
-      background: rgba(16, 22, 38, 0.6);
+      background: rgba(14, 20, 36, 0.65);
       color: var(--text-muted);
       cursor: pointer;
       display: flex;
@@ -419,14 +432,14 @@
       color: #fff;
     }
 
-    /* Ultra-Glassmorphic Message Content - Sphere stays visible behind */
+    /* Ultra-Glassmorphic Message Content - Sphere stays clearly visible behind */
     .message-content {
-      background: rgba(10, 16, 28, 0.45);
+      background: rgba(9, 14, 26, 0.45);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
       padding: 16px 20px;
       border-radius: var(--radius);
-      border: 1px solid rgba(0, 210, 255, 0.14);
+      border: 1px solid rgba(0, 210, 255, 0.16);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 15px rgba(0, 210, 255, 0.03);
       position: relative;
       color: #e6edf3;
@@ -451,7 +464,7 @@
     .speech-word.word-active {
       color: #33dcff !important;
       text-shadow: 0 0 10px rgba(0, 210, 255, 0.9), 0 0 20px rgba(0, 210, 255, 0.5);
-      transform: scale(1.04);
+      transform: scale(1.05);
       font-weight: 600;
     }
 
@@ -506,7 +519,7 @@
     /* Input Bar HUD */
     .input-bar {
       padding: 18px 32px 24px 32px;
-      background: linear-gradient(180deg, transparent 0%, rgba(6, 9, 16, 0.85) 45%);
+      background: linear-gradient(180deg, transparent 0%, rgba(5, 8, 14, 0.88) 45%);
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -515,7 +528,7 @@
     }
 
     .input-container {
-      background: rgba(12, 18, 32, 0.6);
+      background: rgba(10, 16, 30, 0.62);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
       border: 1px solid var(--panel-border);
@@ -661,12 +674,6 @@
       padding-right: 4px;
     }
 
-    .floating-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
-
     /* Model Selection Modal */
     .modal-overlay {
       position: fixed;
@@ -681,7 +688,7 @@
 
     .modal {
       width: 480px;
-      background: rgba(14, 20, 34, 0.95);
+      background: rgba(12, 18, 32, 0.96);
       border: 1px solid var(--panel-border-bright);
       border-radius: var(--radius);
       padding: 24px;
@@ -714,7 +721,7 @@
     }
 
     .modal-select {
-      background: rgba(10, 14, 24, 0.8);
+      background: rgba(8, 12, 22, 0.85);
       border: 1px solid var(--panel-border);
       border-radius: 8px;
       color: #fff;
@@ -776,10 +783,7 @@
   <!-- Ambient Space Background -->
   <div class="space-backdrop"></div>
 
-  <!-- Primary JARVIS Holographic Sphere Canvas (Z-Index: 1, occupies central background) -->
-  <canvas id="jarvisCoreCanvas"></canvas>
-
-  <!-- App UI Frame (Z-Index: 2, transparent HUD floating in front of sphere) -->
+  <!-- App UI Frame -->
   <div class="app-frame" id="appFrame">
     <!-- Left Sidebar -->
     <aside class="sidebar">
@@ -822,8 +826,11 @@
       </div>
     </aside>
 
-    <!-- Main Workspace -->
-    <main class="main-workspace">
+    <!-- Main Workspace (Houses the sphere canvas directly behind the chat HUD) -->
+    <main class="main-workspace" id="mainWorkspace">
+      <!-- Primary JARVIS Holographic Sphere Canvas -->
+      <canvas id="jarvisCoreCanvas"></canvas>
+
       <!-- Topbar HUD -->
       <header class="topbar">
         <div class="topbar-left">
@@ -833,6 +840,11 @@
         </div>
 
         <div class="topbar-right">
+          <!-- Test Voice & Visualizer Button -->
+          <button class="topbar-select test-voice-btn" id="testVoiceBtn" title="Audition Voice & Core Visualizer">
+            ▶ Test Voice & Core
+          </button>
+
           <!-- Voice Selector -->
           <select class="topbar-select" id="voiceSelect" title="Select JARVIS Voice">
             <option value="default">British Male (JARVIS Natural)</option>
@@ -988,7 +1000,8 @@
 
     /**
      * Audio Engine & Analyser
-     * Uses Web Audio API AudioContext + AnalyserNode for true audio-reactive visualization.
+     * Supports real microphone stream, speech formant synthesis modulation,
+     * and automatic AudioContext unlock on user gestures.
      */
     class AudioEngine {
       constructor() {
@@ -999,8 +1012,12 @@
         this.isMicActive = false;
         this.micStream = null;
         this.micSource = null;
-        this.speechHarmonicsOsc = null;
-        this.speechGain = null;
+        this.voiceSynthGain = null;
+        this.voiceOsc1 = null;
+        this.voiceOsc2 = null;
+        this.voiceFilter = null;
+        this.isSpeakingFeed = false;
+        this.syllableInterval = null;
         this.init();
       }
 
@@ -1011,7 +1028,7 @@
             this.ctx = new AudioContextClass();
             this.analyser = this.ctx.createAnalyser();
             this.analyser.fftSize = 256;
-            this.analyser.smoothingTimeConstant = 0.85;
+            this.analyser.smoothingTimeConstant = 0.8;
             this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
             this.timeDomainArray = new Uint8Array(this.analyser.frequencyBinCount);
           }
@@ -1020,14 +1037,15 @@
         }
       }
 
-      resume() {
+      ensureUnlocked() {
+        if (!this.ctx) this.init();
         if (this.ctx && this.ctx.state === "suspended") {
-          this.ctx.resume();
+          this.ctx.resume().catch(() => {});
         }
       }
 
       async connectMicrophone() {
-        this.resume();
+        this.ensureUnlocked();
         try {
           if (!this.micStream) {
             this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1051,37 +1069,84 @@
       }
 
       startSpeechSynthesisAudioFeed() {
-        this.resume();
+        this.ensureUnlocked();
+        this.isSpeakingFeed = true;
         if (!this.ctx || !this.analyser) return;
 
-        // Provide resonant speech harmonic carrier into analyser
-        if (!this.speechGain) {
-          this.speechGain = this.ctx.createGain();
-          this.speechGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
-          this.speechGain.connect(this.analyser);
-          // Connect to muted destination so it produces real audio buffer frames
-          const muteGain = this.ctx.createGain();
-          muteGain.gain.value = 0.0;
-          this.speechGain.connect(muteGain);
-          muteGain.connect(this.ctx.destination);
+        // Build dual-formant resonant synthesizer to feed real fluctuating audio into analyser
+        if (!this.voiceSynthGain) {
+          this.voiceSynthGain = this.ctx.createGain();
+          this.voiceSynthGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+
+          // Formant filter (vowel resonance peak around 650Hz)
+          this.voiceFilter = this.ctx.createBiquadFilter();
+          this.voiceFilter.type = "bandpass";
+          this.voiceFilter.frequency.setValueAtTime(650, this.ctx.currentTime);
+          this.voiceFilter.Q.setValueAtTime(3.0, this.ctx.currentTime);
+
+          this.voiceFilter.connect(this.voiceSynthGain);
+          this.voiceSynthGain.connect(this.analyser);
+
+          // Route to muted destination node so audio clock renders frames
+          const mute = this.ctx.createGain();
+          mute.gain.value = 0.0001;
+          this.voiceSynthGain.connect(mute);
+          mute.connect(this.ctx.destination);
         }
 
-        if (!this.speechHarmonicsOsc) {
-          this.speechHarmonicsOsc = this.ctx.createOscillator();
-          this.speechHarmonicsOsc.type = "sawtooth";
-          this.speechHarmonicsOsc.frequency.setValueAtTime(140, this.ctx.currentTime);
-          this.speechHarmonicsOsc.connect(this.speechGain);
-          this.speechHarmonicsOsc.start();
+        if (!this.voiceOsc1) {
+          // Fundamental pitch oscillator (mature male resonance 130-160Hz)
+          this.voiceOsc1 = this.ctx.createOscillator();
+          this.voiceOsc1.type = "sawtooth";
+          this.voiceOsc1.frequency.setValueAtTime(145, this.ctx.currentTime);
+          this.voiceOsc1.connect(this.voiceFilter);
+          this.voiceOsc1.start();
         }
 
-        this.speechGain.gain.cancelScheduledValues(this.ctx.currentTime);
-        this.speechGain.gain.setValueAtTime(0.45, this.ctx.currentTime);
+        if (!this.voiceOsc2) {
+          // Second formant harmonic (vocal overtone 290Hz)
+          this.voiceOsc2 = this.ctx.createOscillator();
+          this.voiceOsc2.type = "sine";
+          this.voiceOsc2.frequency.setValueAtTime(290, this.ctx.currentTime);
+          this.voiceOsc2.connect(this.voiceFilter);
+          this.voiceOsc2.start();
+        }
+
+        // Pulse syllable envelope to make audio actively undulating with voice cadence
+        this.pulseSyllable();
+        if (this.syllableInterval) clearInterval(this.syllableInterval);
+        this.syllableInterval = setInterval(() => {
+          if (this.isSpeakingFeed) {
+            this.pulseSyllable();
+          }
+        }, 180 + Math.random() * 80);
+      }
+
+      pulseSyllable() {
+        if (!this.ctx || !this.voiceSynthGain) return;
+        const now = this.ctx.currentTime;
+        this.voiceSynthGain.gain.cancelScheduledValues(now);
+        const peak = 0.4 + Math.random() * 0.35;
+        this.voiceSynthGain.gain.setValueAtTime(peak, now);
+        this.voiceSynthGain.gain.exponentialRampToValueAtTime(0.02, now + 0.16);
+
+        if (this.voiceOsc1 && this.voiceFilter) {
+          const newPitch = 135 + Math.random() * 30;
+          this.voiceOsc1.frequency.setValueAtTime(newPitch, now);
+          const newFormant = 500 + Math.random() * 400;
+          this.voiceFilter.frequency.setValueAtTime(newFormant, now);
+        }
       }
 
       stopSpeechSynthesisAudioFeed() {
-        if (this.speechGain && this.ctx) {
-          this.speechGain.gain.cancelScheduledValues(this.ctx.currentTime);
-          this.speechGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+        this.isSpeakingFeed = false;
+        if (this.syllableInterval) {
+          clearInterval(this.syllableInterval);
+          this.syllableInterval = null;
+        }
+        if (this.voiceSynthGain && this.ctx) {
+          this.voiceSynthGain.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.voiceSynthGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
         }
       }
 
@@ -1097,8 +1162,8 @@
 
           const len = this.dataArray.length;
           let sum = 0;
-          const bassEnd = Math.floor(len * 0.15);
-          const midEnd = Math.floor(len * 0.55);
+          const bassEnd = Math.floor(len * 0.18);
+          const midEnd = Math.floor(len * 0.58);
 
           let bassSum = 0;
           let midSum = 0;
@@ -1124,6 +1189,10 @@
 
     const audioEngine = new AudioEngine();
 
+    // Auto-unlock AudioContext on first user interaction
+    window.addEventListener("click", () => audioEngine.ensureUnlocked(), { once: true });
+    window.addEventListener("keydown", () => audioEngine.ensureUnlocked(), { once: true });
+
     /**
      * Primary JARVIS Holographic Sphere Visualizer
      * Renders directly onto #jarvisCoreCanvas:
@@ -1136,14 +1205,14 @@
       constructor(canvasId) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext("2d");
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
+        this.width = 800;
+        this.height = 600;
 
         // Smooth interpolated audio values
-        this.smoothedAmp = 0;
-        this.smoothedBass = 0;
-        this.smoothedMid = 0;
-        this.smoothedTreble = 0;
+        this.smoothedAmp = 0.08;
+        this.smoothedBass = 0.1;
+        this.smoothedMid = 0.08;
+        this.smoothedTreble = 0.06;
 
         // Parallax mouse offsets
         this.targetMouseX = 0;
@@ -1174,11 +1243,12 @@
       }
 
       resize() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        this.canvas.width = this.width * window.devicePixelRatio;
-        this.canvas.height = this.height * window.devicePixelRatio;
-        this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        const rect = this.canvas.getBoundingClientRect();
+        this.width = rect.width || window.innerWidth;
+        this.height = rect.height || window.innerHeight;
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = Math.floor(this.width * dpr);
+        this.canvas.height = Math.floor(this.height * dpr);
       }
 
       initParticles() {
@@ -1188,7 +1258,7 @@
             theta: Math.random() * Math.PI * 2,
             phi: Math.acos((Math.random() * 2) - 1),
             radiusRatio: 0.35 + Math.random() * 0.65,
-            speed: 0.004 + Math.random() * 0.008,
+            speed: 0.005 + Math.random() * 0.008,
             size: 1.2 + Math.random() * 1.8,
             alpha: 0.3 + Math.random() * 0.6,
           });
@@ -1206,66 +1276,81 @@
         const analysis = audioEngine.getAnalysis();
         const state = stateMgr.getState();
 
-        // Lerp audio parameters
-        let targetAmp = analysis.amplitude;
-        let targetBass = analysis.bass;
-        let targetMid = analysis.mid;
-        let targetTreble = analysis.treble;
+        // Organic state-driven baselines to ensure the visualizer is ALWAYS alive
+        let minAmp = 0.07;
+        let minBass = 0.09;
+        let minMid = 0.07;
+        let minTreble = 0.05;
 
-        // Ambient pulse when idle/thinking if audio is low
-        if (state === "IDLE") {
-          targetAmp = Math.max(targetAmp, 0.04 + Math.sin(timestamp * 0.0015) * 0.02);
+        if (state === "SPEAKING") {
+          const pulse = Math.sin(timestamp * 0.008);
+          minAmp = 0.34 + pulse * 0.14;
+          minBass = 0.42 + Math.sin(timestamp * 0.007) * 0.18;
+          minMid = 0.36 + Math.cos(timestamp * 0.01) * 0.15;
+          minTreble = 0.32 + Math.sin(timestamp * 0.012) * 0.14;
         } else if (state === "THINKING") {
-          targetAmp = Math.max(targetAmp, 0.12 + Math.sin(timestamp * 0.004) * 0.06);
+          minAmp = 0.18 + Math.sin(timestamp * 0.006) * 0.08;
+          minBass = 0.16 + Math.sin(timestamp * 0.005) * 0.06;
+          minMid = 0.26 + Math.sin(timestamp * 0.007) * 0.1;
+          minTreble = 0.22 + Math.cos(timestamp * 0.009) * 0.08;
         } else if (state === "LISTENING") {
-          targetAmp = Math.max(targetAmp, 0.16 + Math.sin(timestamp * 0.005) * 0.08);
-        } else if (state === "SPEAKING") {
-          targetAmp = Math.max(targetAmp, 0.28 + Math.sin(timestamp * 0.008) * 0.15);
+          minAmp = 0.24 + Math.sin(timestamp * 0.005) * 0.1;
+          minBass = 0.28 + Math.sin(timestamp * 0.004) * 0.1;
+          minMid = 0.22 + Math.sin(timestamp * 0.006) * 0.08;
+          minTreble = 0.20 + Math.cos(timestamp * 0.008) * 0.06;
+        } else {
+          // IDLE: gentle breathing
+          const breathe = Math.sin(timestamp * 0.002);
+          minAmp = 0.07 + breathe * 0.03;
+          minBass = 0.09 + breathe * 0.04;
+          minMid = 0.07 + breathe * 0.03;
+          minTreble = 0.05 + breathe * 0.02;
         }
 
-        this.smoothedAmp += (targetAmp - this.smoothedAmp) * 0.12;
-        this.smoothedBass += (targetBass - this.smoothedBass) * 0.14;
-        this.smoothedMid += (targetMid - this.smoothedMid) * 0.12;
-        this.smoothedTreble += (targetTreble - this.smoothedTreble) * 0.12;
+        const targetAmp = Math.max(analysis.amplitude, minAmp);
+        const targetBass = Math.max(analysis.bass, minBass);
+        const targetMid = Math.max(analysis.mid, minMid);
+        const targetTreble = Math.max(analysis.treble, minTreble);
+
+        this.smoothedAmp += (targetAmp - this.smoothedAmp) * 0.14;
+        this.smoothedBass += (targetBass - this.smoothedBass) * 0.15;
+        this.smoothedMid += (targetMid - this.smoothedMid) * 0.14;
+        this.smoothedTreble += (targetTreble - this.smoothedTreble) * 0.14;
 
         this.render(timestamp, analysis.timeDomain);
       }
 
       render(timestamp, timeDomainData) {
         const ctx = this.ctx;
-        const w = this.width;
-        const h = this.height;
-        ctx.clearRect(0, 0, w, h);
+        const dpr = window.devicePixelRatio || 1;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Always cleanly match CSS pixel grid
+        ctx.clearRect(0, 0, this.width, this.height);
 
-        // Centered coordinates with slight parallax offset
-        const cx = (w / 2) + this.mouseX;
-        const cy = (h / 2) + this.mouseY;
+        // Centered coordinates within the main workspace
+        const cx = (this.width / 2) + this.mouseX;
+        const cy = (this.height / 2) + this.mouseY;
 
-        // Sphere radius scales with screen size (large central sphere)
-        const baseRadius = Math.min(w * 0.32, h * 0.36, 320);
-        const dynamicRadius = baseRadius * (1 + (this.smoothedAmp * 0.18));
+        // Large prominent sphere occupying central background
+        const baseRadius = Math.min(this.width * 0.35, this.height * 0.38, 330);
+        const dynamicRadius = baseRadius * (1 + (this.smoothedAmp * 0.2));
 
         const state = stateMgr.getState();
 
         // Color definitions based on state
-        let primaryColor = "0, 210, 255";
-        let glowColor = "rgba(0, 210, 255, 0.28)";
+        let primaryColor = "0, 210, 255"; // Cyan default
 
         if (state === "LISTENING") {
           primaryColor = "255, 170, 0"; // Warm Amber
-          glowColor = "rgba(255, 170, 0, 0.32)";
         } else if (state === "THINKING") {
           primaryColor = "163, 113, 247"; // Neural Violet
-          glowColor = "rgba(163, 113, 247, 0.35)";
         } else if (state === "SPEAKING") {
           primaryColor = "0, 245, 255"; // Bright Electric Cyan
-          glowColor = "rgba(0, 245, 255, 0.45)";
         }
 
         // 1. Holographic Sphere Glass Ambient Body
-        const radialGlow = ctx.createRadialGradient(cx, cy, dynamicRadius * 0.15, cx, cy, dynamicRadius * 1.3);
-        radialGlow.addColorStop(0, `rgba(${primaryColor}, ${0.12 + this.smoothedAmp * 0.2})`);
-        radialGlow.addColorStop(0.65, `rgba(${primaryColor}, ${0.04 + this.smoothedAmp * 0.08})`);
+        const radialGlow = ctx.createRadialGradient(cx, cy, dynamicRadius * 0.15, cx, cy, dynamicRadius * 1.35);
+        radialGlow.addColorStop(0, `rgba(${primaryColor}, ${0.14 + this.smoothedAmp * 0.22})`);
+        radialGlow.addColorStop(0.65, `rgba(${primaryColor}, ${0.05 + this.smoothedAmp * 0.08})`);
         radialGlow.addColorStop(1, "transparent");
 
         ctx.fillStyle = radialGlow;
@@ -1274,9 +1359,9 @@
         ctx.fill();
 
         // 2. Translucent Glass Sphere Perimeter & Refraction Rim
-        ctx.strokeStyle = `rgba(${primaryColor}, ${0.25 + this.smoothedAmp * 0.35})`;
-        ctx.lineWidth = 1.8;
-        ctx.shadowColor = `rgba(${primaryColor}, 0.8)`;
+        ctx.strokeStyle = `rgba(${primaryColor}, ${0.28 + this.smoothedAmp * 0.4})`;
+        ctx.lineWidth = 2.0;
+        ctx.shadowColor = `rgba(${primaryColor}, 0.85)`;
         ctx.shadowBlur = 18 * (1 + this.smoothedAmp);
         ctx.beginPath();
         ctx.arc(cx, cy, dynamicRadius, 0, Math.PI * 2);
@@ -1284,34 +1369,34 @@
         ctx.shadowBlur = 0;
 
         // 3. Orbiting Concentric 3D Perspective Rings
-        const rotSpeed = state === "THINKING" ? 0.025 : (state === "SPEAKING" ? 0.018 : 0.007);
+        const rotSpeed = state === "THINKING" ? 0.024 : (state === "SPEAKING" ? 0.018 : 0.007);
         this.ringAngle1 += rotSpeed;
-        this.ringAngle2 -= rotSpeed * 0.8;
-        this.ringAngle3 += rotSpeed * 0.6;
+        this.ringAngle2 -= rotSpeed * 0.85;
+        this.ringAngle3 += rotSpeed * 0.65;
         this.ringAngle4 -= rotSpeed * 1.1;
 
-        // Equatorial Ring (Tilted 3D Ellipse)
-        this.drawTiltedRing(cx, cy, dynamicRadius * 1.12, dynamicRadius * 0.42, this.ringAngle1, `rgba(${primaryColor}, ${0.4 + this.smoothedBass * 0.5})`, 2);
+        // Equatorial Ring (Tilted 3D Ellipse) - Expands with bass
+        this.drawTiltedRing(cx, cy, dynamicRadius * (1.1 + this.smoothedBass * 0.15), dynamicRadius * 0.42, this.ringAngle1, `rgba(${primaryColor}, ${0.45 + this.smoothedBass * 0.5})`, 2.2);
         
         // Polar Ring (Cross-Angle Ellipse)
-        this.drawTiltedRing(cx, cy, dynamicRadius * 0.45, dynamicRadius * 1.08, this.ringAngle2, `rgba(${primaryColor}, ${0.35 + this.smoothedMid * 0.45})`, 1.5);
+        this.drawTiltedRing(cx, cy, dynamicRadius * 0.45, dynamicRadius * (1.08 + this.smoothedMid * 0.12), this.ringAngle2, `rgba(${primaryColor}, ${0.4 + this.smoothedMid * 0.45})`, 1.6);
 
         // Gyroscope Tilted Angle 1 (45 deg)
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(0.785);
-        this.drawTiltedRing(0, 0, dynamicRadius * 0.95, dynamicRadius * 0.35, this.ringAngle3, `rgba(${primaryColor}, ${0.3 + this.smoothedTreble * 0.4})`, 1.5, true);
+        this.drawTiltedRing(0, 0, dynamicRadius * 0.95, dynamicRadius * 0.35, this.ringAngle3, `rgba(${primaryColor}, ${0.35 + this.smoothedTreble * 0.4})`, 1.6, true);
         ctx.restore();
 
         // Gyroscope Tilted Angle 2 (-45 deg)
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(-0.785);
-        this.drawTiltedRing(0, 0, dynamicRadius * 0.85, dynamicRadius * 0.32, this.ringAngle4, `rgba(${primaryColor}, ${0.25 + this.smoothedAmp * 0.3})`, 1.2);
+        this.drawTiltedRing(0, 0, dynamicRadius * 0.85, dynamicRadius * 0.32, this.ringAngle4, `rgba(${primaryColor}, ${0.3 + this.smoothedAmp * 0.35})`, 1.4);
         ctx.restore();
 
         // 4. Flowing Audio Waveform / Energy Ribbon Inside the Sphere
-        this.drawInnerWaveform(cx, cy, dynamicRadius * 0.72, timeDomainData, primaryColor);
+        this.drawInnerWaveform(cx, cy, dynamicRadius * 0.72, timeDomainData, primaryColor, timestamp, state);
 
         // 5. Orbiting 3D Particle Cloud & Energy Trails
         this.drawParticles(cx, cy, dynamicRadius, primaryColor);
@@ -1342,32 +1427,44 @@
         const ny = Math.sin(nodeAngle) * ry;
         ctx.fillStyle = "#fff";
         ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 12;
         ctx.beginPath();
-        ctx.arc(nx, ny, 3.2, 0, Math.PI * 2);
+        ctx.arc(nx, ny, 3.4, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
 
         ctx.restore();
       }
 
-      drawInnerWaveform(cx, cy, maxRadius, timeDomain, primaryColor) {
+      drawInnerWaveform(cx, cy, maxRadius, timeDomain, primaryColor, timestamp, state) {
         const ctx = this.ctx;
-        const points = 64;
+        const points = 72;
         ctx.save();
         ctx.beginPath();
 
         const step = (Math.PI * 2) / points;
+        const waveSpeed = state === "SPEAKING" ? 0.009 : (state === "THINKING" ? 0.006 : (state === "LISTENING" ? 0.004 : 0.002));
+        const waveFreq = state === "SPEAKING" ? 6 : (state === "THINKING" ? 5 : 4);
+
         for (let i = 0; i <= points; i++) {
           const angle = i * step;
           let offset = 0;
 
+          // Check if timeDomain has active non-silent audio data
           if (timeDomain && timeDomain.length > 0) {
             const dataIndex = Math.floor((i / points) * (timeDomain.length / 2));
-            const norm = (timeDomain[dataIndex] - 128) / 128;
-            offset = norm * (maxRadius * 0.35) * (0.3 + this.smoothedAmp * 0.7);
-          } else {
-            offset = Math.sin(angle * 5 + performance.now() * 0.005) * (maxRadius * 0.12 * this.smoothedAmp);
+            const val = timeDomain[dataIndex];
+            if (Math.abs(val - 128) > 2) {
+              const norm = (val - 128) / 128;
+              offset = norm * (maxRadius * 0.4) * (0.4 + this.smoothedAmp * 0.6);
+            }
+          }
+
+          // Fluid organic fallback so waveform is ALWAYS beautifully rippling and alive
+          if (offset === 0) {
+            const harmonic = Math.sin(angle * waveFreq + timestamp * waveSpeed) * 0.6 +
+                             Math.cos(angle * (waveFreq * 0.5) - timestamp * waveSpeed * 1.3) * 0.4;
+            offset = harmonic * (maxRadius * (0.06 + this.smoothedAmp * 0.28));
           }
 
           const r = maxRadius + offset;
@@ -1379,10 +1476,10 @@
         }
 
         ctx.closePath();
-        ctx.strokeStyle = `rgba(${primaryColor}, ${0.55 + this.smoothedAmp * 0.45})`;
-        ctx.lineWidth = 2.2;
-        ctx.shadowColor = `rgba(${primaryColor}, 0.8)`;
-        ctx.shadowBlur = 14;
+        ctx.strokeStyle = `rgba(${primaryColor}, ${0.65 + this.smoothedAmp * 0.35})`;
+        ctx.lineWidth = 2.4;
+        ctx.shadowColor = `rgba(${primaryColor}, 0.85)`;
+        ctx.shadowBlur = 16;
         ctx.stroke();
         ctx.shadowBlur = 0;
         ctx.restore();
@@ -1390,7 +1487,7 @@
 
       drawParticles(cx, cy, sphereRadius, primaryColor) {
         const ctx = this.ctx;
-        const speedMultiplier = 1 + (this.smoothedAmp * 2.2);
+        const speedMultiplier = 1 + (this.smoothedAmp * 2.4);
 
         for (const p of this.particles) {
           p.theta += p.speed * speedMultiplier;
@@ -1401,8 +1498,8 @@
           const y = cy + r * Math.sin(p.phi) * Math.sin(p.theta);
           const depth = Math.cos(p.phi); // -1 (back) to +1 (front)
 
-          const apparentSize = p.size * (1 + depth * 0.3);
-          const apparentAlpha = Math.max(0.1, (p.alpha + (this.smoothedTreble * 0.4)) * (0.6 + depth * 0.4));
+          const apparentSize = p.size * (1 + depth * 0.35);
+          const apparentAlpha = Math.max(0.12, (p.alpha + (this.smoothedTreble * 0.45)) * (0.6 + depth * 0.4));
 
           ctx.fillStyle = `rgba(${primaryColor}, ${apparentAlpha})`;
           ctx.beginPath();
@@ -1416,34 +1513,35 @@
         ctx.save();
         ctx.translate(cx, cy);
 
-        const scale = 1 + (this.smoothedBass * 0.25);
+        // Core expands and pulses dynamically with bass
+        const scale = 1 + (this.smoothedBass * 0.28);
         ctx.scale(scale, scale);
 
         // Core Outer Ring
-        ctx.strokeStyle = `rgba(${primaryColor}, 0.8)`;
+        ctx.strokeStyle = `rgba(${primaryColor}, 0.85)`;
         ctx.lineWidth = 2;
         ctx.shadowColor = `rgba(${primaryColor}, 0.9)`;
-        ctx.shadowBlur = 16;
+        ctx.shadowBlur = 18;
         ctx.beginPath();
         ctx.arc(0, 0, radius, 0, Math.PI * 2);
         ctx.stroke();
 
-        // 3 Orbiting Segments
-        const segRot = timestamp * 0.002;
+        // 3 Rotating Outer Arc Segments
+        const segRot = timestamp * 0.0022;
         ctx.rotate(segRot);
         for (let i = 0; i < 3; i++) {
           const a = (i * Math.PI * 2) / 3;
           ctx.beginPath();
-          ctx.arc(0, 0, radius * 0.7, a, a + 1.2);
-          ctx.lineWidth = 3;
+          ctx.arc(0, 0, radius * 0.72, a, a + 1.25);
+          ctx.lineWidth = 3.2;
           ctx.stroke();
         }
 
         // Inner Glowing Reactor Core
         ctx.beginPath();
-        ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
+        ctx.arc(0, 0, radius * 0.38, 0, Math.PI * 2);
         ctx.fillStyle = "#fff";
-        ctx.shadowBlur = 24;
+        ctx.shadowBlur = 25;
         ctx.fill();
 
         ctx.restore();
@@ -1529,6 +1627,7 @@
           return;
         }
 
+        audioEngine.ensureUnlocked();
         this.onWordBoundary = onWordBoundary;
         this.onFinish = onFinish;
 
@@ -1548,6 +1647,7 @@
         // Real-time word boundary synchronization
         utter.onboundary = (event) => {
           if (event.name === "word") {
+            audioEngine.pulseSyllable();
             if (this.onWordBoundary) {
               this.onWordBoundary(event.charIndex, event.charLength || 0);
             }
@@ -1729,10 +1829,10 @@
         for (let i = 0; i <= points; i++) {
           const x = i * step;
           let val = 0;
-          if (timeData && timeData.length > 0) {
+          if (timeData && timeData.length > 0 && Math.abs(timeData[i * 2] - 128) > 2) {
             val = ((timeData[i * 2] - 128) / 128) * (h * 0.35);
           } else {
-            val = Math.sin(i * 0.4 + performance.now() * 0.01) * (h * 0.25 * amp);
+            val = Math.sin(i * 0.4 + performance.now() * 0.01) * (h * 0.25 * (amp || 0.2));
           }
           const y = (h / 2) + val;
           if (i === 0) ctx.moveTo(x, y);
@@ -1781,6 +1881,7 @@
     const micBtn = document.getElementById("micBtn");
     const stopBtn = document.getElementById("stopBtn");
     const modeBadge = document.getElementById("modeBadge");
+    const testVoiceBtn = document.getElementById("testVoiceBtn");
     const confirmModal = document.getElementById("confirmModal");
     const modalDetails = document.getElementById("modalDetails");
     const btnApprove = document.getElementById("btnApprove");
@@ -1809,8 +1910,28 @@
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    // Audition Voice & Core Visualizer
+    testVoiceBtn.addEventListener("click", () => {
+      audioEngine.ensureUnlocked();
+      const testPhrase = "All neural systems operational, Sir. Voice harmonics and sphere visualizer online.";
+      const jarvisContent = appendMessage("jarvis", "");
+      const spans = SpeechSynchronizer.prepareTextContainer(jarvisContent, testPhrase);
+
+      ttsService.speak(
+        testPhrase,
+        (charIndex) => {
+          SpeechSynchronizer.syncWords(spans, charIndex);
+        },
+        () => {
+          SpeechSynchronizer.finalizeWords(spans);
+          stateMgr.setState("IDLE");
+        }
+      );
+    });
+
     async function sendPrompt(text) {
       if (!text.trim()) return;
+      audioEngine.ensureUnlocked();
       ttsService.stop();
 
       appendMessage("user", text);
@@ -1984,6 +2105,7 @@
       };
 
       micBtn.addEventListener("click", () => {
+        audioEngine.ensureUnlocked();
         if (micBtn.classList.contains("active")) {
           recognition.stop();
         } else {
