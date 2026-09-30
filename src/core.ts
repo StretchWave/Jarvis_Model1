@@ -87,6 +87,7 @@ export class JarvisCore {
       spawnIfDown: this.config.opencode.spawnIfDown,
       cliPath: this.config.opencode.cliPath,
       disableGlobalDiscovery: this.config.opencode.disableGlobalDiscovery,
+      legacyProtocolMode: this.config.opencode.legacyProtocolMode,
     });
     this.sessionMgr = new SessionManager(this.db, this.opencode, this.logger);
     this.memoryMgr = new MemoryManager(this.db, this.logger);
@@ -177,10 +178,13 @@ export class JarvisCore {
             variant: this.config.models.fast.variant || "default",
           };
 
+          const targetVariant = targetModel.variant || "default";
+          const currentVariant = currentModel?.variant || "default";
           const modelMatches =
             currentModel &&
             currentModel.providerID === targetModel.providerID &&
-            (currentModel.id === targetModel.id || currentModel.modelID === targetModel.id);
+            (currentModel.id === targetModel.id || currentModel.modelID === targetModel.id) &&
+            (!currentModel.variant || currentVariant === targetVariant);
 
           if (!modelMatches) {
             this.logger.info(`Reconciling session model from ${currentModel ? `${currentModel.providerID}/${currentModel.id}` : "none"} to ${targetModel.providerID}/${targetModel.id}...`);

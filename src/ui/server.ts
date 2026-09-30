@@ -101,6 +101,44 @@ export class JarvisServer {
           return;
         }
 
+        // GET /api/sessions
+        if (url.pathname === "/api/sessions" && req.method === "GET") {
+          try {
+            const sessions = this.core.db.listSessions("active");
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ sessions }));
+          } catch (err: any) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+          return;
+        }
+
+        // POST /api/sessions
+        if (url.pathname === "/api/sessions" && req.method === "POST") {
+          let body = "";
+          req.on("data", chunk => body += chunk);
+          req.on("end", async () => {
+            try {
+              let parsed: any = {};
+              try { parsed = JSON.parse(body); } catch {}
+              const title = parsed.title || `Session ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+              const category = parsed.category || "general";
+              const session = await this.core.sessionMgr.createSession({
+                title,
+                category,
+                createOpenCodeSession: true,
+              });
+              res.writeHead(201, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ session }));
+            } catch (err: any) {
+              res.writeHead(500, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
         // GET /api/models
         if (url.pathname === "/api/models" && req.method === "GET") {
           try {
@@ -137,7 +175,7 @@ export class JarvisServer {
                 return;
               }
 
-              const { fast, agent, agentWeight, persist } = parsed;
+              const { fast, agent, agentWeight, persist, sessionId } = parsed;
 
               // Validate against catalog without hiding failures (Requirement 12 & 13)
               let catalog: any[];
@@ -193,9 +231,34 @@ export class JarvisServer {
                 }
               }
 
+              // Switch active session immediately if sessionId is provided (Part 1 Req 1)
+              let sessionData: any = null;
+              if (sessionId) {
+                const session = this.core.db.getSession(sessionId);
+                if (session) {
+                  if (fast) {
+                    await this.core.switchSessionModel(sessionId, {
+                      providerID: fast.providerID,
+                      id: fast.modelID,
+                      variant: fast.variant || "default",
+                    });
+                  }
+                  if (agent?.agentID) {
+                    await this.core.switchSessionAgent(sessionId, agent.agentID);
+                  }
+                  const ocSesId = await this.core.sessionMgr.ensureOpenCodeSession(sessionId);
+                  sessionData = await this.core.opencode.getSession(ocSesId);
+                }
+              }
+
               this.core.updateModels({ fast, agent, agentWeight }, persist !== false);
               res.writeHead(200, { "Content-Type": "application/json" });
-              res.end(JSON.stringify({ success: true, models: this.core.config.models, persisted: persist !== false }));
+              res.end(JSON.stringify({
+                success: true,
+                models: this.core.config.models,
+                persisted: persist !== false,
+                session: sessionData,
+              }));
             } catch (err: any) {
               res.writeHead(400, { "Content-Type": "application/json" });
               res.end(JSON.stringify({ error: err.message }));
@@ -258,8 +321,11 @@ export class JarvisServer {
 
               try {
                 await this.core.switchSessionModel(sessionId, { providerID, modelID, variant });
+                const ocSessionId = await this.core.sessionMgr.ensureOpenCodeSession(sessionId);
+                const sessionData = await this.core.opencode.getSession(ocSessionId);
+                const resultingModel = sessionData?.model || sessionData?.data?.model || { providerID, modelID, variant };
                 res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ success: true, sessionId, model: { providerID, modelID, variant } }));
+                res.end(JSON.stringify({ success: true, sessionId, model: resultingModel, session: sessionData }));
               } catch (ocErr: any) {
                 const status = (ocErr instanceof OpenCodeError && ocErr.status) ? ocErr.status : 502;
                 res.writeHead(status, { "Content-Type": "application/json" });
@@ -321,8 +387,11 @@ export class JarvisServer {
 
               try {
                 await this.core.switchSessionAgent(sessionId, agentID);
+                const ocSessionId = await this.core.sessionMgr.ensureOpenCodeSession(sessionId);
+                const sessionData = await this.core.opencode.getSession(ocSessionId);
+                const resultingAgent = sessionData?.agent || sessionData?.data?.agent || agentID;
                 res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ success: true, sessionId, agentID }));
+                res.end(JSON.stringify({ success: true, sessionId, agentID: resultingAgent, session: sessionData }));
               } catch (ocErr: any) {
                 const status = (ocErr instanceof OpenCodeError && ocErr.status) ? ocErr.status : 502;
                 res.writeHead(status, { "Content-Type": "application/json" });

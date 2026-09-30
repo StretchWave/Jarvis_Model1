@@ -6,6 +6,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { JarvisCore, type JarvisEvent } from "../src/core.ts";
 import { JarvisServer } from "../src/ui/server.ts";
+import { OpenCodeClient } from "../src/opencode_client.ts";
+import { compareSemver } from "../src/config.ts";
 
 let totalTests = 0;
 let passedTests = 0;
@@ -43,6 +45,16 @@ async function runAcceptanceTests() {
 
   const testDb = path.join(testDir, "acceptance.db");
 
+  const probeClient = new OpenCodeClient();
+  const probeInfo = await probeClient.resolveService();
+  let isLegacy = false;
+  if (probeInfo) {
+    const h = await probeClient.health();
+    if (h.ok && h.version && compareSemver(h.version, "2.1.0") < 0) {
+      isLegacy = true;
+    }
+  }
+
   // Create custom config for testing (explicitly using mock fallback provider for offline test suite)
   const configPath = path.join(testDir, "test_config.json");
   fs.writeFileSync(
@@ -50,6 +62,9 @@ async function runAcceptanceTests() {
     JSON.stringify({
       dataDir: testDir,
       databasePath: testDb,
+      opencode: {
+        legacyProtocolMode: isLegacy,
+      },
       fallbackProvider: {
         enabled: true,
         provider: "mock",

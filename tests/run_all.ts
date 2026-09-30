@@ -15,6 +15,8 @@
 
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
+import { OpenCodeClient } from "../src/opencode_client.ts";
+import { compareSemver } from "../src/config.ts";
 
 const execAsync = promisify(exec);
 
@@ -60,6 +62,7 @@ const mockIntegrationSuites: SuiteInfo[] = [
   { file: "tests/test_opencode_cancellation.ts", name: "OpenCode SSE Lifecycle & Cancellation" },
   { file: "tests/test_opencode_resilience.ts", name: "OpenCode Persistence, Health Fallback & Timeout Resilience" },
   { file: "tests/test_final_acceptance.ts", name: "Final Mock Acceptance Verification" },
+  { file: "tests/test_phase10_backend_fixes.ts", name: "Backend Protocol & Persistence Correctness" },
 ];
 
 const liveIntegrationSuites: SuiteInfo[] = [

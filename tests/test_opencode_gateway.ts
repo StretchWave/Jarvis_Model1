@@ -21,6 +21,7 @@ import { Logger } from "../src/logger.ts";
 import { SessionManager } from "../src/session_manager.ts";
 import { Database } from "../src/database.ts";
 import { OpenCodeModelProvider } from "../src/models/provider.ts";
+import { compareSemver } from "../src/config.ts";
 
 let totalTests = 0;
 let passedTests = 0;
@@ -105,12 +106,17 @@ async function runOpenCodeGatewayTests() {
 
   const testDbPath = path.join(testDir, "test_gateway.db");
   const testConfigPath = path.join(testDir, "jarvis.config.json");
+  const isLegacyDaemon = Boolean(health.version && compareSemver(health.version, "2.1.0") < 0);
+  client.legacyProtocolMode = isLegacyDaemon;
 
   fs.writeFileSync(
     testConfigPath,
     JSON.stringify({
       dataDir: testDir,
       databasePath: testDbPath,
+      opencode: {
+        legacyProtocolMode: isLegacyDaemon,
+      },
       models: {
         fast: testModelRef,
         agent: testModelRef,

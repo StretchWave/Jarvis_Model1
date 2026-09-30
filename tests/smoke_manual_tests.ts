@@ -16,6 +16,7 @@ import * as path from "node:path";
 import { JarvisCore, type JarvisEvent } from "../src/core.ts";
 import { OpenCodeClient } from "../src/opencode_client.ts";
 import { Logger } from "../src/logger.ts";
+import { compareSemver } from "../src/config.ts";
 
 let totalTests = 0;
 let passedTests = 0;
@@ -52,11 +53,24 @@ async function runSmokeTests() {
   const testDb = path.join(testDir, "smoke.db");
   const testConfig = path.join(testDir, "jarvis.config.json");
 
+  const probeClient = new OpenCodeClient();
+  const probeInfo = await probeClient.resolveService();
+  let isLegacy = false;
+  if (probeInfo) {
+    const h = await probeClient.health();
+    if (h.ok && h.version && compareSemver(h.version, "2.1.0") < 0) {
+      isLegacy = true;
+    }
+  }
+
   fs.writeFileSync(
     testConfig,
     JSON.stringify({
       dataDir: testDir,
       databasePath: testDb,
+      opencode: {
+        legacyProtocolMode: isLegacy,
+      },
       models: {
         fast: {
           providerID: "opencode",

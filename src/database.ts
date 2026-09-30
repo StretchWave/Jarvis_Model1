@@ -275,13 +275,13 @@ export class Database {
     `);
     stmt.run(
       session.id,
-      session.title,
-      session.category,
+      session.title || "Untitled Session",
+      session.category || "general",
       session.project_id || null,
       session.opencode_session_id || null,
-      session.created_at,
-      session.updated_at,
-      session.status
+      session.created_at || Date.now(),
+      session.updated_at || Date.now(),
+      session.status || "active"
     );
   }
 

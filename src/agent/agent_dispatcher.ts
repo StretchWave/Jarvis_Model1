@@ -118,14 +118,7 @@ export class AgentDispatcher {
     userPrompt: string,
     jarvisSessionId: string,
     projectId?: string,
-    signal?: AbortSignal,
-    onPermissionRequest?: (perm: {
-      opencodeSessionId: string;
-      opencodeRequestId: string;
-      action: string;
-      details?: string;
-      resources?: string[];
-    }) => Promise<"once" | "always" | "reject">
+    signal?: AbortSignal
   ): AsyncIterable<AgentEvent> {
     this.logger.info(`Starting Agent task in session ${jarvisSessionId}: "${userPrompt.substring(0, 60)}..."`);
     yield { type: "progress", message: "Connecting to OpenCode engine..." };
@@ -187,7 +180,6 @@ export class AgentDispatcher {
         model: modelRef,
         agent: targetAgent,
         signal,
-        onPermissionRequest,
       })) {
         if (ev.type === "permission_request") {
           yield {

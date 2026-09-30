@@ -192,6 +192,8 @@ export class OpenCodeClient {
   public connectTimeoutMs: number;
   public spawnIfDown: boolean;
   private disableGlobalDiscovery: boolean;
+  public legacyProtocolMode: boolean = false;
+  private repliedPermissions: Set<string> = new Set<string>();
 
   constructor(
     serviceFileOrOptions?: string | {
@@ -200,6 +202,7 @@ export class OpenCodeClient {
       spawnIfDown?: boolean;
       cliPath?: string;
       disableGlobalDiscovery?: boolean;
+      legacyProtocolMode?: boolean;
     },
     logger?: Logger,
     options?: {
@@ -207,6 +210,7 @@ export class OpenCodeClient {
       spawnIfDown?: boolean;
       cliPath?: string;
       disableGlobalDiscovery?: boolean;
+      legacyProtocolMode?: boolean;
     }
   ) {
     if (typeof serviceFileOrOptions === "object" && serviceFileOrOptions !== null) {
@@ -215,12 +219,20 @@ export class OpenCodeClient {
       this.spawnIfDown = serviceFileOrOptions.spawnIfDown ?? true;
       this.cliPath = serviceFileOrOptions.cliPath;
       this.disableGlobalDiscovery = Boolean(serviceFileOrOptions.disableGlobalDiscovery);
+      this.legacyProtocolMode = Boolean(
+        serviceFileOrOptions.legacyProtocolMode ||
+        process.env.OPENCODE_LEGACY_PROTOCOL_MODE === "true"
+      );
     } else {
       this.serviceFile = typeof serviceFileOrOptions === "string" ? serviceFileOrOptions : "";
       this.connectTimeoutMs = options?.connectTimeoutMs ?? 5000;
       this.spawnIfDown = options?.spawnIfDown ?? true;
       this.cliPath = options?.cliPath;
       this.disableGlobalDiscovery = Boolean(options?.disableGlobalDiscovery);
+      this.legacyProtocolMode = Boolean(
+        options?.legacyProtocolMode ||
+        process.env.OPENCODE_LEGACY_PROTOCOL_MODE === "true"
+      );
     }
 
     const log = logger || new Logger("OpenCodeClient", "info");
@@ -748,19 +760,26 @@ export class OpenCodeClient {
       );
     }
 
-    // Verify session state actually updated on OpenCode (Requirement 14)
+    // Verify session state actually updated on OpenCode (Requirement 14 & Part 1 Req 5)
     try {
       const sessionData = await this.getSession(sessionId);
       const actual = sessionData?.model || sessionData?.data?.model;
       if (actual) {
         const actualProvider = actual.providerID;
         const actualId = actual.id || actual.modelID;
-        if (actualProvider !== model.providerID || actualId !== model.id) {
+        const actualVariant = actual.variant;
+        const expectedVariant = targetVariant;
+
+        const providerMismatch = actualProvider !== model.providerID;
+        const idMismatch = actualId !== model.id;
+        const variantMismatch = actualVariant !== undefined && actualVariant !== expectedVariant;
+
+        if (providerMismatch || idMismatch || variantMismatch) {
           throw new OpenCodeError(
-            `Model switch verification failed for session ${sessionId}: expected ${model.providerID}/${model.id}, but session reported ${actualProvider}/${actualId}`,
+            `Model switch verification failed for session ${sessionId}: expected ${model.providerID}/${model.id} (variant: ${expectedVariant}), but session reported ${actualProvider}/${actualId}${actualVariant !== undefined ? ` (variant: ${actualVariant})` : ""}`,
             500,
             "ModelSwitchVerificationError",
-            { expected: model, actual }
+            { expected: { ...model, variant: expectedVariant }, actual }
           );
         }
       }
@@ -860,6 +879,22 @@ export class OpenCodeClient {
    * Sends only documented fields: { prompt: { text, files, agents }, delivery, resume }.
    */
   public async promptSession(sessionId: string, req: PromptSessionRequest, options: RequestOptions = {}): Promise<any> {
+    if (this.legacyProtocolMode) {
+      this.logger.info(`Legacy protocol mode active: sending unnested prompt payload to session ${sessionId}`);
+      const legacyPayload: Record<string, any> = {
+        text: req.text,
+        delivery: req.delivery || "steer",
+      };
+      if (req.files && req.files.length > 0) legacyPayload.files = req.files;
+      if (req.resume !== undefined) legacyPayload.resume = req.resume;
+      return await this.request(`/api/session/${sessionId}/prompt`, {
+        method: "POST",
+        body: legacyPayload,
+        timeoutMs: options.timeoutMs ?? this.connectTimeoutMs,
+        signal: options.signal,
+      });
+    }
+
     const promptObj: Record<string, any> = {
       text: req.text,
     };
@@ -872,30 +907,12 @@ export class OpenCodeClient {
     if (req.delivery) payload.delivery = req.delivery;
     if (req.resume !== undefined) payload.resume = req.resume;
 
-    try {
-      return await this.request(`/api/session/${sessionId}/prompt`, {
-        method: "POST",
-        body: payload,
-        timeoutMs: options.timeoutMs ?? this.connectTimeoutMs,
-        signal: options.signal,
-      });
-    } catch (err: any) {
-      if (err.status === 400 && typeof err.message === "string" && err.message.includes('Missing key\n  at ["text"]')) {
-        const legacyPayload: Record<string, any> = {
-          text: req.text,
-          delivery: req.delivery || "steer",
-        };
-        if (req.files && req.files.length > 0) legacyPayload.files = req.files;
-        if (req.resume !== undefined) legacyPayload.resume = req.resume;
-        return await this.request(`/api/session/${sessionId}/prompt`, {
-          method: "POST",
-          body: legacyPayload,
-          timeoutMs: options.timeoutMs ?? this.connectTimeoutMs,
-          signal: options.signal,
-        });
-      }
-      throw err;
-    }
+    return await this.request(`/api/session/${sessionId}/prompt`, {
+      method: "POST",
+      body: payload,
+      timeoutMs: options.timeoutMs ?? this.connectTimeoutMs,
+      signal: options.signal,
+    });
   }
 
   public async sendPrompt(sessionId: string, prompt: string, options?: RequestOptions): Promise<any> {
@@ -982,6 +999,13 @@ export class OpenCodeClient {
     reply: "once" | "always" | "reject",
     message?: string
   ): Promise<void> {
+    const permKey = `${sessionId}:${requestId}`;
+    if (this.repliedPermissions.has(permKey)) {
+      this.logger.debug(`Ignoring duplicate permission reply for ${permKey}`);
+      return;
+    }
+    this.repliedPermissions.add(permKey);
+
     const body: Record<string, any> = {
       reply,
     };
@@ -1056,43 +1080,69 @@ export class OpenCodeClient {
     const reader = resp.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let buffer = "";
+    let currentEvent = "message";
+    let currentId = "";
+    let dataLines: string[] = [];
+
+    const processLine = (rawLine: string) => {
+      let line = rawLine;
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+
+      if (line === "") {
+        if (dataLines.length > 0) {
+          const combined = dataLines.join("\n");
+          try {
+            const parsed = JSON.parse(combined);
+            onEvent({ event: currentEvent, data: parsed, id: currentId || undefined });
+          } catch {
+            onEvent({ event: currentEvent, data: combined, id: currentId || undefined });
+          }
+          dataLines = [];
+          currentEvent = "message";
+          currentId = "";
+        }
+      } else if (line.startsWith("event:")) {
+        const val = line.substring(6);
+        currentEvent = val.startsWith(" ") ? val.substring(1) : val;
+      } else if (line.startsWith("id:")) {
+        const val = line.substring(3);
+        currentId = val.startsWith(" ") ? val.substring(1) : val;
+      } else if (line.startsWith("data:")) {
+        const val = line.substring(5);
+        dataLines.push(val.startsWith(" ") ? val.substring(1) : val);
+      }
+    };
 
     (async () => {
       try {
         while (!internalController.signal.aborted) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            if (buffer.length > 0) {
+              const remainingLines = buffer.split("\n");
+              buffer = "";
+              for (const l of remainingLines) {
+                processLine(l);
+              }
+            }
+            if (dataLines.length > 0) {
+              const combined = dataLines.join("\n");
+              try {
+                onEvent({ event: currentEvent, data: JSON.parse(combined), id: currentId || undefined });
+              } catch {
+                onEvent({ event: currentEvent, data: combined, id: currentId || undefined });
+              }
+              dataLines = [];
+            }
+            break;
+          }
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
           buffer = lines.pop() || "";
 
-          let currentEvent = "message";
-          let currentId = "";
-          let dataLines: string[] = [];
-
           for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed === "") {
-              if (dataLines.length > 0) {
-                const combined = dataLines.join("\n");
-                try {
-                  const parsed = JSON.parse(combined);
-                  onEvent({ event: currentEvent, data: parsed, id: currentId || undefined });
-                } catch {
-                  onEvent({ event: currentEvent, data: combined, id: currentId || undefined });
-                }
-                dataLines = [];
-                currentEvent = "message";
-                currentId = "";
-              }
-            } else if (trimmed.startsWith("event:")) {
-              currentEvent = trimmed.substring(6).trim();
-            } else if (trimmed.startsWith("id:")) {
-              currentId = trimmed.substring(3).trim();
-            } else if (trimmed.startsWith("data:")) {
-              dataLines.push(trimmed.substring(5).trim());
-            }
+            processLine(line);
           }
         }
       } catch (err: any) {
@@ -1131,13 +1181,6 @@ export class OpenCodeClient {
       model?: OpenCodeModelRef;
       agent?: string;
       signal?: AbortSignal;
-      onPermissionRequest?: (perm: {
-        opencodeSessionId: string;
-        opencodeRequestId: string;
-        action: string;
-        details?: string;
-        resources?: string[];
-      }) => Promise<"once" | "always" | "reject">;
     }
   ): AsyncIterable<OpenCodeStreamEvent> {
     if (options?.signal?.aborted) {
@@ -1190,6 +1233,7 @@ export class OpenCodeClient {
     };
 
     let unsubscribeSSE: (() => void) | null = null;
+    let sseActive = false;
 
     try {
       unsubscribeSSE = await this.subscribeEvents((raw) => {
@@ -1228,7 +1272,7 @@ export class OpenCodeClient {
           const tName = d.data?.tool || d.tool || d.data?.name || d.name || "Tool";
           pushEvent({ type: "tool_activity", tool: tName, status: "running" });
         }
-        // Permission Request handling: NEVER silently grant 'always'
+        // Single authoritative permission request event: dispatched to core handler
         else if (evType.includes("permission")) {
           const reqId = d.data?.id || d.data?.requestID || d.id;
           const act = d.data?.action || d.data?.tool || "Tool execution";
@@ -1241,21 +1285,6 @@ export class OpenCodeClient {
               details: d.data?.details || d.data?.reason,
               resources: d.data?.resources,
             });
-            if (options?.onPermissionRequest) {
-              options.onPermissionRequest({
-                opencodeSessionId: sessionId,
-                opencodeRequestId: reqId,
-                action: act,
-                details: d.data?.details || d.data?.reason,
-                resources: d.data?.resources,
-              }).then((decision) => {
-                this.replyPermission(sessionId, reqId, decision).catch((err) => {
-                  this.logger.warn(`Failed replying to permission request ${reqId}:`, err);
-                });
-              }).catch(() => {
-                this.replyPermission(sessionId, reqId, "reject").catch(() => {});
-              });
-            }
           }
         }
         // Completion or Failure
@@ -1271,16 +1300,127 @@ export class OpenCodeClient {
           pushEvent({ type: "error", error: errMsg });
         }
       }, options?.signal);
+      sseActive = true;
     } catch (err: any) {
-      this.logger.warn("SSE subscription error, falling back to message polling:", err);
+      this.logger.warn("SSE subscription unavailable; initiating immediate message polling fallback:", err);
+      sseActive = false;
+    }
+
+    // Track baseline messages before sending prompt to prevent duplicates during polling
+    let initialMessageCount = 0;
+    try {
+      const initialMsgs = await this.getMessages(sessionId);
+      initialMessageCount = Array.isArray(initialMsgs) ? initialMsgs.length : 0;
+    } catch {}
+
+    // Bounded message polling fallback loop (Part 1 Req 4)
+    let pollingInterval: NodeJS.Timeout | null = null;
+    if (!sseActive) {
+      this.logger.info(`Starting bounded message polling fallback loop for session ${sessionId}`);
+      let lastPolledTextLength = 0;
+      const pollFreqMs = 250;
+
+      pollingInterval = setInterval(async () => {
+        if (state === "completed" || state === "failed" || state === "cancelled" || state === "timed_out") {
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+          }
+          return;
+        }
+
+        if (options?.signal?.aborted) {
+          state = "cancelled";
+          pushEvent({ type: "error", error: "Execution cancelled by user" });
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+          }
+          return;
+        }
+
+        try {
+          const msgs = await this.getMessages(sessionId);
+          if (Array.isArray(msgs) && msgs.length > initialMessageCount) {
+            const newAssistantMsgs = msgs
+              .slice(initialMessageCount)
+              .filter((m: any) => m.type === "assistant" || m.role === "assistant");
+
+            for (const aMsg of newAssistantMsgs) {
+              lastActivityTime = Date.now();
+              let text = "";
+              if (typeof aMsg.content === "string") {
+                text = aMsg.content;
+              } else if (Array.isArray(aMsg.content)) {
+                text = aMsg.content
+                  .filter((p: any) => p && (p.type === "text" || (!p.type && typeof p.text === "string")))
+                  .map((p: any) => p.text || "")
+                  .join("");
+              } else if (typeof aMsg.text === "string") {
+                text = aMsg.text;
+              }
+
+              if (text.length > lastPolledTextLength) {
+                state = "streaming";
+                const delta = text.slice(lastPolledTextLength);
+                lastPolledTextLength = text.length;
+                accumulatedText = text;
+                pushEvent({ type: "token", text: delta });
+              }
+
+              const isFinished =
+                aMsg.status === "completed" ||
+                aMsg.status === "finished" ||
+                Boolean(aMsg.completed) ||
+                Boolean(aMsg.time?.completed);
+
+              if (isFinished) {
+                state = "completed";
+                pushEvent({ type: "done", fullText: accumulatedText });
+                if (pollingInterval) {
+                  clearInterval(pollingInterval);
+                  pollingInterval = null;
+                }
+                break;
+              }
+            }
+          }
+        } catch (pollErr: any) {
+          this.logger.debug(`Polling message check error for session ${sessionId}:`, pollErr);
+        }
+      }, pollFreqMs);
     }
 
     try {
       // 4. Send canonical prompt
       state = "dispatching";
       const promptPromise = this.promptSession(sessionId, { text: prompt }, { signal: options?.signal });
-      promptPromise.then(() => {
+      promptPromise.then(async () => {
         if (state === "dispatching") state = "running";
+        if (!sseActive && state !== "completed" && state !== "failed" && state !== "cancelled") {
+          try {
+            const msgs = await this.getMessages(sessionId);
+            const assistantMsg = [...msgs].reverse().find((m: any) => m.type === "assistant" || m.role === "assistant");
+            if (assistantMsg) {
+              let extracted = "";
+              if (Array.isArray(assistantMsg.content)) {
+                extracted = assistantMsg.content
+                  .filter((p: any) => p && (p.type === "text" || (!p.type && typeof p.text === "string")))
+                  .map((p: any) => p.text || "")
+                  .join("").trim();
+              } else if (typeof assistantMsg.content === "string") {
+                extracted = assistantMsg.content.trim();
+              }
+              if (extracted && extracted.length > accumulatedText.length) {
+                const delta = extracted.slice(accumulatedText.length);
+                accumulatedText = extracted;
+                pushEvent({ type: "token", text: delta });
+              }
+            }
+            state = "completed";
+            pushEvent({ type: "done", fullText: accumulatedText });
+          } catch {}
+        }
       }).catch((err) => {
         executionError = err.message;
         state = "failed";
@@ -1356,6 +1496,10 @@ export class OpenCodeClient {
         yield { type: "done", fullText: accumulatedText };
       }
     } finally {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
       if (unsubscribeSSE) {
         unsubscribeSSE();
       }

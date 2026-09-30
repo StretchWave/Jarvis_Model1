@@ -4,7 +4,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getDefaultConfig } from "../src/config.ts";
+import { getDefaultConfig, compareSemver } from "../src/config.ts";
 import { Logger } from "../src/logger.ts";
 import { Database } from "../src/database.ts";
 import { OpenCodeClient } from "../src/opencode_client.ts";
@@ -42,6 +42,10 @@ async function runPhase7() {
 
   const db = new Database(testDbPath, logger);
   const client = new OpenCodeClient(cfg.opencode.serviceFile, logger);
+  const health = await client.health();
+  if (health.version && compareSemver(health.version, "2.1.0") < 0) {
+    client.legacyProtocolMode = true;
+  }
   const sessionMgr = new SessionManager(db, client, logger);
   const memoryMgr = new MemoryManager(db, logger);
 

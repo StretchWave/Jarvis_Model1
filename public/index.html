@@ -6,31 +6,37 @@
   <title>JARVIS — Neural Core AI Workstation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #05070d;
-      --bg-deep: #030408;
-      --panel: rgba(8, 14, 26, 0.42);
-      --panel-solid: rgba(10, 16, 28, 0.88);
-      --panel-border: rgba(0, 210, 255, 0.16);
-      --panel-border-bright: rgba(0, 210, 255, 0.45);
-      --panel-hover: rgba(16, 26, 46, 0.65);
-      --accent: #00d2ff;
-      --accent-bright: #33dcff;
-      --accent-glow: rgba(0, 210, 255, 0.5);
-      --accent-dim: #007799;
-      --accent-blue: #0077ff;
-      --accent-purple: #a371f7;
-      --accent-green: #3fb950;
-      --accent-orange: #ff9900;
-      --danger: #f85149;
-      --text: #e6edf3;
-      --text-muted: #8b949e;
-      --text-subtle: #565f69;
-      --radius: 14px;
+      --bg-dark: #03050c;
+      --bg-twilight-top: #050a1a;
+      --bg-twilight-mid: #10162e;
+      --horizon-amber: rgba(255, 128, 48, 0.42);
+      --horizon-glow: rgba(255, 175, 75, 0.28);
+      --desk-dark: #060912;
+      --panel-glass: rgba(10, 16, 30, 0.58);
+      --panel-glass-solid: rgba(8, 13, 25, 0.88);
+      --panel-border: rgba(0, 220, 255, 0.18);
+      --panel-border-bright: rgba(0, 240, 255, 0.45);
+      --panel-hover: rgba(0, 220, 255, 0.08);
+      --accent: #00e5ff;
+      --accent-bright: #33ecff;
+      --accent-glow: rgba(0, 229, 255, 0.55);
+      --accent-deep: #007799;
+      --accent-blue: #0070f3;
+      --accent-purple: #a855f7;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --danger: #ef4444;
+      --text: #e6edf8;
+      --text-muted: #8c9cb5;
+      --text-subtle: #4d5b73;
+      --radius-lg: 20px;
+      --radius-md: 14px;
       --radius-sm: 8px;
-      --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --radius-pill: 9999px;
+      --font-main: 'Outfit', 'Inter', -apple-system, sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
 
@@ -41,7 +47,7 @@
     }
 
     body {
-      background-color: var(--bg);
+      background-color: var(--bg-dark);
       color: var(--text);
       font-family: var(--font-main);
       height: 100vh;
@@ -50,22 +56,136 @@
       overflow: hidden;
       position: relative;
       user-select: none;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Ambient atmospheric background behind canvas */
+    /* =========================================================================
+       1. SCENIC DUSK PENTHOUSE PANORAMA BACKGROUND
+       ========================================================================= */
     .space-backdrop {
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background: 
-        radial-gradient(circle at 60% 50%, rgba(0, 80, 150, 0.18) 0%, transparent 65%),
-        radial-gradient(circle at 20% 20%, rgba(0, 210, 255, 0.06) 0%, transparent 45%),
-        radial-gradient(circle at 85% 85%, rgba(0, 100, 255, 0.08) 0%, transparent 55%),
-        var(--bg);
       z-index: 0;
+      overflow: hidden;
+      background: 
+        linear-gradient(180deg, 
+          #040714 0%, 
+          #090e24 35%, 
+          #161938 52%, 
+          #2c1b35 64%, 
+          #421d28 72%, 
+          #2a161f 76%, 
+          #101320 84%, 
+          #060810 100%
+        );
     }
 
-    /* App Frame Container */
+    /* Warm dusk horizon glow layer */
+    .dusk-horizon-glow {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 28%;
+      background: radial-gradient(ellipse 90% 70% at 50% 65%, 
+        rgba(255, 125, 45, 0.42) 0%, 
+        rgba(255, 90, 60, 0.25) 35%, 
+        rgba(165, 55, 120, 0.15) 60%, 
+        transparent 80%
+      );
+      filter: blur(28px);
+      transform: translateY(-20%);
+    }
+
+    /* Mountain & Bay Silhouette at Horizon */
+    .dusk-silhouette {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 54%;
+      height: 22%;
+      background-image: 
+        radial-gradient(ellipse 45% 65% at 20% 100%, #0d0f1c 0%, transparent 75%),
+        radial-gradient(ellipse 55% 75% at 75% 100%, #0b0d18 0%, transparent 80%),
+        radial-gradient(ellipse 65% 55% at 50% 100%, #111424 0%, transparent 85%);
+      opacity: 0.92;
+    }
+
+    /* Distant Bay City Lights */
+    .dusk-city-lights {
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      top: 67%;
+      height: 12px;
+      background: 
+        radial-gradient(circle at 15% 50%, rgba(255, 230, 160, 0.75) 1px, transparent 2px),
+        radial-gradient(circle at 28% 40%, rgba(255, 200, 120, 0.6) 1.5px, transparent 2.5px),
+        radial-gradient(circle at 35% 60%, rgba(0, 220, 255, 0.7) 1px, transparent 2px),
+        radial-gradient(circle at 62% 45%, rgba(255, 220, 150, 0.65) 1.5px, transparent 3px),
+        radial-gradient(circle at 74% 55%, rgba(255, 180, 100, 0.8) 1px, transparent 2px),
+        radial-gradient(circle at 88% 50%, rgba(0, 240, 255, 0.6) 1px, transparent 2px);
+      filter: drop-shadow(0 0 6px rgba(255, 190, 100, 0.7));
+    }
+
+    /* Floor-to-Ceiling Luxury Window Mullions */
+    .window-mullion {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      background: linear-gradient(180deg, 
+        rgba(18, 24, 40, 0.85) 0%, 
+        rgba(10, 14, 26, 0.95) 60%, 
+        rgba(5, 8, 16, 1) 100%
+      );
+      box-shadow: 
+        inset 1px 0 0 rgba(255, 255, 255, 0.08), 
+        inset -1px 0 0 rgba(0, 0, 0, 0.8),
+        0 0 12px rgba(0, 0, 0, 0.6);
+      z-index: 1;
+    }
+    .mullion-left { left: 24%; }
+    .mullion-right { right: 24%; }
+
+    /* Polished Mahogany / Ebony Executive Desk Foreground Surface */
+    .desk-surface {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 18%;
+      background: linear-gradient(180deg, 
+        rgba(16, 20, 32, 0.45) 0%, 
+        rgba(8, 10, 18, 0.88) 25%, 
+        #04050a 100%
+      );
+      box-shadow: inset 0 2px 4px rgba(255, 180, 100, 0.12), inset 0 1px 1px rgba(0, 240, 255, 0.15);
+      border-top: 1px solid rgba(255, 160, 80, 0.15);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Desk surface reflection highlight */
+    .desk-surface::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 20%;
+      right: 20%;
+      height: 45px;
+      background: radial-gradient(ellipse 60% 100% at 50% 0%, 
+        rgba(0, 220, 255, 0.14) 0%, 
+        rgba(255, 120, 40, 0.08) 50%, 
+        transparent 90%
+      );
+      filter: blur(12px);
+    }
+
+    /* =========================================================================
+       2. APP FRAME CONTAINER & LAYOUT
+       ========================================================================= */
     .app-frame {
       position: relative;
       display: flex;
@@ -74,49 +194,56 @@
       z-index: 2;
     }
 
-    /* Left Sidebar - Transparent HUD */
+    /* =========================================================================
+       3. FLOATING TRANSLUCENT LEFT NAVIGATION RAIL
+       ========================================================================= */
     .sidebar {
-      width: 280px;
-      background: rgba(7, 11, 20, 0.55);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border-right: 1px solid var(--panel-border);
+      position: relative;
+      width: 250px;
+      margin: 18px 0 18px 18px;
+      border-radius: var(--radius-lg);
+      background: var(--panel-glass);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 0 20px rgba(0, 220, 255, 0.03);
       display: flex;
       flex-direction: column;
-      padding: 22px 16px;
-      gap: 18px;
-      z-index: 10;
-      transition: transform 0.3s ease, width 0.3s ease;
+      padding: 20px 14px;
+      gap: 16px;
+      z-index: 20;
+      transition: width 0.3s ease;
     }
 
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid rgba(0, 210, 255, 0.12);
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(0, 220, 255, 0.12);
     }
 
     .mini-reactor {
-      width: 34px;
-      height: 34px;
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
       border: 2px solid var(--accent);
-      box-shadow: 0 0 15px var(--accent-glow);
+      box-shadow: 0 0 18px var(--accent-glow), inset 0 0 10px rgba(0, 220, 255, 0.4);
       position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      animation: reactor-spin 12s linear infinite;
+      animation: reactor-spin 14s linear infinite;
+      flex-shrink: 0;
     }
 
     .mini-reactor::after {
       content: '';
-      width: 12px;
-      height: 12px;
-      background: var(--accent);
+      width: 14px;
+      height: 14px;
+      background: radial-gradient(circle, #ffffff 10%, var(--accent) 70%);
       border-radius: 50%;
-      box-shadow: 0 0 10px var(--accent);
+      box-shadow: 0 0 12px var(--accent);
     }
 
     @keyframes reactor-spin {
@@ -129,31 +256,36 @@
       font-weight: 800;
       letter-spacing: 2px;
       color: #fff;
-      text-shadow: 0 0 12px rgba(0, 210, 255, 0.6);
+      text-shadow: 0 0 16px rgba(0, 220, 255, 0.7);
+      line-height: 1.1;
     }
 
     .brand-sub {
-      font-size: 10px;
+      font-size: 9.5px;
       color: var(--accent);
-      letter-spacing: 1.5px;
+      letter-spacing: 1.8px;
       text-transform: uppercase;
       font-weight: 600;
+      font-family: var(--font-mono);
     }
 
     /* State Pill on Sidebar */
     .state-pill {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
-      padding: 6px 12px;
-      background: rgba(0, 210, 255, 0.08);
-      border: 1px solid rgba(0, 210, 255, 0.25);
-      border-radius: 20px;
+      padding: 6px 14px;
+      background: rgba(0, 220, 255, 0.08);
+      border: 1px solid rgba(0, 220, 255, 0.28);
+      border-radius: var(--radius-pill);
       font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 1px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
       text-transform: uppercase;
-      color: var(--accent);
+      color: var(--accent-bright);
+      box-shadow: 0 0 12px rgba(0, 220, 255, 0.15);
+      transition: all 0.25s ease;
     }
 
     .state-dot {
@@ -162,30 +294,84 @@
       border-radius: 50%;
       background: var(--accent);
       box-shadow: 0 0 8px var(--accent);
+      transition: all 0.25s ease;
     }
 
-    .state-pill.speaking .state-dot { background: #00ffaa; box-shadow: 0 0 14px #00ffaa; animation: dot-pulse 0.6s infinite alternate; }
-    .state-pill.listening .state-dot { background: #ffaa00; box-shadow: 0 0 14px #ffaa00; animation: dot-pulse 0.4s infinite alternate; }
-    .state-pill.thinking .state-dot { background: #a371f7; box-shadow: 0 0 14px #a371f7; animation: dot-pulse 0.8s infinite alternate; }
+    .state-pill.speaking { border-color: rgba(16, 185, 129, 0.5); color: #34d399; }
+    .state-pill.speaking .state-dot { background: #34d399; box-shadow: 0 0 14px #34d399; animation: dot-pulse 0.5s infinite alternate; }
+    .state-pill.listening { border-color: rgba(245, 158, 11, 0.5); color: #fbbf24; }
+    .state-pill.listening .state-dot { background: #fbbf24; box-shadow: 0 0 14px #fbbf24; animation: dot-pulse 0.4s infinite alternate; }
+    .state-pill.thinking { border-color: rgba(168, 85, 247, 0.5); color: #c084fc; }
+    .state-pill.thinking .state-dot { background: #c084fc; box-shadow: 0 0 14px #c084fc; animation: dot-pulse 0.8s infinite alternate; }
 
     @keyframes dot-pulse {
-      0% { transform: scale(0.8); opacity: 0.7; }
-      100% { transform: scale(1.3); opacity: 1; }
+      0% { transform: scale(0.8); opacity: 0.65; }
+      100% { transform: scale(1.35); opacity: 1; }
     }
 
+    /* Navigation Menu Items */
+    .nav-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      list-style: none;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 14px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .nav-item svg {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+      opacity: 0.85;
+      stroke: currentColor;
+    }
+
+    .nav-item:hover {
+      background: var(--panel-hover);
+      color: #fff;
+      border-color: rgba(0, 220, 255, 0.15);
+    }
+
+    .nav-item.active {
+      background: rgba(0, 220, 255, 0.12);
+      border-color: rgba(0, 220, 255, 0.35);
+      color: var(--accent);
+      font-weight: 600;
+      box-shadow: 0 0 16px rgba(0, 220, 255, 0.12), inset 0 0 8px rgba(0, 220, 255, 0.05);
+    }
+
+    /* Active Sessions Section */
     .session-section {
       flex: 1;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      margin-top: 4px;
+      border-top: 1px solid rgba(0, 220, 255, 0.1);
+      padding-top: 12px;
     }
 
     .section-label {
-      font-size: 11px;
+      font-size: 10.5px;
       text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: var(--text-muted);
+      letter-spacing: 1.6px;
+      color: var(--text-subtle);
+      font-weight: 700;
       margin-bottom: 8px;
+      padding: 0 4px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -196,14 +382,14 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      padding-right: 4px;
+      gap: 4px;
+      padding-right: 2px;
     }
 
     .session-item {
-      padding: 9px 12px;
+      padding: 8px 12px;
       border-radius: 8px;
-      font-size: 13px;
+      font-size: 12.5px;
       color: var(--text-muted);
       cursor: pointer;
       border: 1px solid transparent;
@@ -217,45 +403,88 @@
     }
 
     .session-item:hover {
-      background: rgba(0, 210, 255, 0.08);
+      background: rgba(0, 220, 255, 0.08);
       color: #fff;
     }
 
     .session-item.active {
-      background: rgba(0, 210, 255, 0.14);
-      border-color: rgba(0, 210, 255, 0.35);
+      background: rgba(0, 220, 255, 0.14);
+      border-color: rgba(0, 220, 255, 0.35);
       color: var(--accent);
       font-weight: 600;
     }
 
-    /* System Status HUD */
-    .system-status {
-      padding: 12px 14px;
-      background: rgba(8, 14, 26, 0.6);
+    /* User Profile Capsule */
+    .user-profile-capsule {
+      margin-top: auto;
+      padding: 10px 12px;
+      background: rgba(6, 10, 20, 0.7);
       border: 1px solid var(--panel-border);
-      border-radius: var(--radius);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0070f3, #00d2ff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 12px;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(0, 112, 243, 0.5);
+    }
+
+    .user-info {
+      flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 7px;
-      font-size: 11px;
+      overflow: hidden;
     }
 
-    .status-row {
+    .user-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-status-row {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      color: var(--text-muted);
     }
 
-    .status-indicator {
-      display: inline-block;
-      width: 7px;
-      height: 7px;
+    .user-status-dot {
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--accent-green);
       box-shadow: 0 0 6px var(--accent-green);
     }
 
-    /* Main Center Workspace - Holds Background Canvas and Foreground HUD */
+    .pro-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+
+    /* =========================================================================
+       4. MAIN WORKSPACE WITH CANVAS & FOREGROUND HUD
+       ========================================================================= */
     .main-workspace {
       flex: 1;
       display: flex;
@@ -264,7 +493,7 @@
       overflow: hidden;
     }
 
-    /* Primary JARVIS Core Canvas - fills the main workspace area directly behind chat */
+    /* Canvas spanning entire main workspace directly behind chat */
     #jarvisCoreCanvas {
       position: absolute;
       top: 0;
@@ -275,17 +504,15 @@
       z-index: 1;
     }
 
-    /* Top HUD Navigation Bar */
+    /* =========================================================================
+       5. TOPBAR HUD & ACTIVE MODEL FLOATING CARD
+       ========================================================================= */
     .topbar {
-      height: 60px;
-      border-bottom: 1px solid var(--panel-border);
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 28px;
-      background: rgba(7, 11, 20, 0.42);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
       position: relative;
       z-index: 10;
     }
@@ -293,13 +520,28 @@
     .topbar-left {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
     }
 
-    .topbar-right {
+    /* Live Date & Time Clock Display */
+    .clock-display {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
+      background: rgba(8, 14, 28, 0.45);
+      backdrop-filter: blur(16px);
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(0, 220, 255, 0.12);
+    }
+
+    .clock-time {
+      color: #fff;
+      font-weight: 700;
     }
 
     .mode-badge {
@@ -307,31 +549,37 @@
       align-items: center;
       gap: 6px;
       padding: 5px 12px;
-      border-radius: 20px;
+      border-radius: var(--radius-pill);
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      background: rgba(0, 210, 255, 0.12);
-      border: 1px solid rgba(0, 210, 255, 0.3);
+      background: rgba(0, 220, 255, 0.12);
+      border: 1px solid rgba(0, 220, 255, 0.3);
       color: var(--accent);
-      box-shadow: 0 0 10px rgba(0, 210, 255, 0.15);
+      box-shadow: 0 0 10px rgba(0, 220, 255, 0.15);
     }
 
-    .mode-badge.direct { background: rgba(63, 185, 80, 0.15); border-color: rgba(63, 185, 80, 0.4); color: #3fb950; }
-    .mode-badge.search { background: rgba(255, 170, 0, 0.15); border-color: rgba(255, 170, 0, 0.4); color: #ffaa00; }
-    .mode-badge.fast   { background: rgba(0, 210, 255, 0.15); border-color: rgba(0, 210, 255, 0.4); color: #00d2ff; }
-    .mode-badge.agent  { background: rgba(163, 113, 247, 0.15); border-color: rgba(163, 113, 247, 0.4); color: #a371f7; }
+    .mode-badge.direct { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #10b981; }
+    .mode-badge.search { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.4); color: #f59e0b; }
+    .mode-badge.fast   { background: rgba(0, 220, 255, 0.15); border-color: rgba(0, 220, 255, 0.4); color: #00e5ff; }
+    .mode-badge.agent  { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #a855f7; }
 
-    /* Topbar Controls & Voice Selector */
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
     .topbar-select {
-      background: rgba(12, 18, 34, 0.75);
+      background: rgba(10, 16, 32, 0.7);
+      backdrop-filter: blur(16px);
       border: 1px solid var(--panel-border);
       border-radius: var(--radius-sm);
       color: var(--text);
       font-family: inherit;
       font-size: 12px;
-      padding: 6px 10px;
+      padding: 6px 12px;
       outline: none;
       cursor: pointer;
       transition: all 0.2s;
@@ -343,23 +591,23 @@
     }
 
     .test-voice-btn {
-      background: rgba(0, 210, 255, 0.15);
+      background: rgba(0, 220, 255, 0.14);
       border: 1px solid var(--accent);
       color: var(--accent-bright);
       font-weight: 600;
     }
 
     .test-voice-btn:hover {
-      background: rgba(0, 210, 255, 0.28);
+      background: rgba(0, 220, 255, 0.26);
       box-shadow: 0 0 14px var(--accent-glow);
     }
 
     .window-btn {
       width: 32px;
       height: 32px;
-      border-radius: 6px;
+      border-radius: 8px;
       border: 1px solid var(--panel-border);
-      background: rgba(14, 20, 36, 0.65);
+      background: rgba(12, 18, 34, 0.65);
       color: var(--text-muted);
       cursor: pointer;
       display: flex;
@@ -374,26 +622,133 @@
       border-color: var(--accent);
     }
 
-    /* Chat Container - Glassmorphic HUD floating in front of the central sphere */
+    /* Floating Top-Right Active Model Card */
+    .active-model-card {
+      position: absolute;
+      top: 76px;
+      right: 28px;
+      width: 290px;
+      background: rgba(9, 14, 28, 0.6);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(0, 220, 255, 0.22);
+      border-radius: var(--radius-md);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 15px rgba(0, 220, 255, 0.08);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 10;
+      transition: all 0.25s ease;
+    }
+
+    .active-model-card:hover {
+      border-color: rgba(0, 220, 255, 0.45);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.65), 0 0 24px rgba(0, 220, 255, 0.15);
+    }
+
+    .card-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 6px var(--accent-green);
+    }
+
+    .card-model-name {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #fff;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .card-tag {
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(0, 220, 255, 0.1);
+      border: 1px solid rgba(0, 220, 255, 0.2);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 10px;
+    }
+
+    .quick-chips-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 2px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .action-chip {
+      flex: 1;
+      padding: 5px 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .action-chip:hover {
+      background: rgba(0, 220, 255, 0.15);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* =========================================================================
+       6. CONVERSATION OVERLAY HUD (FLOATING IN FRONT OF SPHERE)
+       ========================================================================= */
     .chat-container {
       flex: 1;
       overflow-y: auto;
-      padding: 24px 32px;
+      padding: 10px 48px 16px 48px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 16px;
       position: relative;
       z-index: 5;
       user-select: text;
     }
 
-    /* Message HUD cards */
     .message {
       max-width: 820px;
       display: flex;
-      gap: 14px;
+      gap: 12px;
       line-height: 1.6;
-      font-size: 15px;
+      font-size: 14.5px;
       animation: message-appear 0.25s cubic-bezier(0.2, 0.8, 0.3, 1);
     }
 
@@ -407,54 +762,54 @@
       flex-direction: row-reverse;
     }
 
+    .message.jarvis {
+      align-self: flex-start;
+    }
+
     .message-avatar {
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 700;
-      font-size: 13px;
+      font-size: 12px;
       flex-shrink: 0;
     }
 
     .message.jarvis .message-avatar {
-      background: rgba(0, 210, 255, 0.15);
+      background: rgba(0, 220, 255, 0.16);
       border: 1px solid var(--accent);
       color: var(--accent);
       box-shadow: 0 0 12px var(--accent-glow);
     }
 
     .message.user .message-avatar {
-      background: rgba(0, 119, 255, 0.2);
-      border: 1px solid rgba(0, 119, 255, 0.4);
+      background: rgba(0, 112, 243, 0.25);
+      border: 1px solid rgba(0, 112, 243, 0.45);
       color: #fff;
     }
 
-    /* Ultra-Glassmorphic Message Content - Sphere stays clearly visible behind */
     .message-content {
-      background: rgba(9, 14, 26, 0.45);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      padding: 16px 20px;
-      border-radius: var(--radius);
-      border: 1px solid rgba(0, 210, 255, 0.16);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 15px rgba(0, 210, 255, 0.03);
+      background: rgba(8, 14, 28, 0.42);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(0, 220, 255, 0.16);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.42), inset 0 0 15px rgba(0, 220, 255, 0.02);
       position: relative;
-      color: #e6edf3;
+      color: #e6edf8;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
     }
 
     .message.user .message-content {
-      background: rgba(0, 119, 255, 0.18);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      background: rgba(0, 112, 243, 0.18);
       border-color: rgba(0, 140, 255, 0.35);
       color: #fff;
     }
 
-    /* Synchronized Speech Words Reveal & Highlight */
     .speech-word {
       display: inline-block;
       transition: color 0.12s ease, text-shadow 0.12s ease, transform 0.12s ease;
@@ -462,29 +817,23 @@
     }
 
     .speech-word.word-active {
-      color: #33dcff !important;
-      text-shadow: 0 0 10px rgba(0, 210, 255, 0.9), 0 0 20px rgba(0, 210, 255, 0.5);
+      color: #33ecff !important;
+      text-shadow: 0 0 12px rgba(0, 220, 255, 0.95), 0 0 24px rgba(0, 220, 255, 0.6);
       transform: scale(1.05);
       font-weight: 600;
     }
 
-    .speech-word.word-spoken {
-      color: #e6edf3;
-    }
+    .speech-word.word-spoken { color: #e6edf8; }
+    .speech-word.word-pending { color: rgba(230, 237, 248, 0.45); }
 
-    .speech-word.word-pending {
-      color: rgba(230, 237, 243, 0.45);
-    }
-
-    /* Live Activity Cards */
     .activity-card {
-      margin-top: 10px;
-      padding: 10px 14px;
-      background: rgba(0, 0, 0, 0.45);
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(12px);
       border-left: 3px solid var(--accent);
       border-radius: 4px;
-      font-size: 13px;
+      font-size: 12.5px;
       color: var(--text-muted);
       display: flex;
       align-items: center;
@@ -492,12 +841,12 @@
     }
 
     .sources-list {
-      margin-top: 14px;
-      padding-top: 10px;
+      margin-top: 12px;
+      padding-top: 8px;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
 
     .source-link {
@@ -512,41 +861,49 @@
       text-overflow: ellipsis;
     }
 
-    .source-link:hover {
-      text-decoration: underline;
-    }
+    .source-link:hover { text-decoration: underline; }
 
-    /* Input Bar HUD */
-    .input-bar {
-      padding: 18px 32px 24px 32px;
-      background: linear-gradient(180deg, transparent 0%, rgba(5, 8, 14, 0.88) 45%);
+    /* =========================================================================
+       7. CENTERED BOTTOM COMPOSER CAPSULE & STATUS CHIPS ROW
+       ========================================================================= */
+    .composer-area {
+      padding: 10px 48px 24px 48px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      align-items: center;
+      gap: 12px;
       position: relative;
       z-index: 10;
     }
 
-    .input-container {
-      background: rgba(10, 16, 30, 0.62);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid var(--panel-border);
-      border-radius: 30px;
+    .composer-capsule {
+      width: 100%;
+      max-width: 860px;
+      background: rgba(8, 14, 28, 0.65);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      border: 1px solid rgba(0, 220, 255, 0.28);
+      border-radius: var(--radius-pill);
       display: flex;
       align-items: center;
-      padding: 6px 14px 6px 20px;
+      padding: 6px 10px 6px 18px;
       gap: 10px;
-      box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 210, 255, 0.04);
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.65), 0 0 25px rgba(0, 220, 255, 0.12), inset 0 0 15px rgba(0, 220, 255, 0.04);
       transition: all 0.25s ease;
     }
 
-    .input-container:focus-within {
+    .composer-capsule:focus-within {
       border-color: var(--accent);
-      box-shadow: 0 0 25px var(--accent-glow);
+      box-shadow: 0 20px 55px rgba(0, 0, 0, 0.75), 0 0 35px var(--accent-glow);
     }
 
-    .prompt-input {
+    .composer-tools-left {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .composer-input {
       flex: 1;
       background: transparent;
       border: none;
@@ -554,15 +911,22 @@
       color: #fff;
       font-family: inherit;
       font-size: 15px;
+      padding: 8px 4px;
     }
 
-    .prompt-input::placeholder {
+    .composer-input::placeholder {
       color: var(--text-subtle);
     }
 
+    .composer-controls-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .icon-btn {
-      width: 40px;
-      height: 40px;
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
       border: none;
       background: transparent;
@@ -579,10 +943,41 @@
       color: #fff;
     }
 
+    .icon-btn.active {
+      background: rgba(0, 220, 255, 0.18);
+      color: var(--accent-bright);
+      border: 1px solid var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    /* Model Pill Badge inside Composer */
+    .composer-model-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      background: rgba(0, 220, 255, 0.08);
+      border: 1px solid rgba(0, 220, 255, 0.24);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .composer-model-pill:hover {
+      background: rgba(0, 220, 255, 0.16);
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(0, 220, 255, 0.3);
+    }
+
     .mic-btn.active {
-      background: rgba(248, 81, 73, 0.25);
+      background: rgba(239, 68, 68, 0.25);
       color: var(--danger);
-      box-shadow: 0 0 16px rgba(248, 81, 73, 0.5);
+      box-shadow: 0 0 18px rgba(239, 68, 68, 0.6);
       animation: pulse-mic 0.8s infinite alternate;
     }
 
@@ -592,28 +987,90 @@
     }
 
     .send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
       background: var(--accent);
       color: #000;
-      font-weight: 700;
-    }
-
-    .send-btn:hover {
-      background: #33dcff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
       box-shadow: 0 0 16px var(--accent-glow);
     }
 
+    .send-btn:hover {
+      background: var(--accent-bright);
+      box-shadow: 0 0 24px var(--accent-glow);
+      transform: scale(1.05);
+    }
+
     .stop-btn {
-      background: rgba(248, 81, 73, 0.2);
+      background: rgba(239, 68, 68, 0.2);
       color: var(--danger);
-      border: 1px solid rgba(248, 81, 73, 0.4);
+      border: 1px solid rgba(239, 68, 68, 0.4);
       display: none;
     }
 
-    .stop-btn.visible {
+    .stop-btn.visible { display: flex; }
+
+    /* Subsystem Status Chips Row */
+    .status-chips-row {
       display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
-    /* Floating Minimized Response Window */
+    .subsystem-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: rgba(8, 14, 28, 0.45);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-subtle);
+      letter-spacing: 0.4px;
+      transition: all 0.25s ease;
+    }
+
+    .subsystem-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.4;
+      transition: all 0.25s ease;
+    }
+
+    .subsystem-chip.active {
+      color: #fff;
+      border-color: rgba(0, 220, 255, 0.45);
+      background: rgba(0, 220, 255, 0.12);
+      box-shadow: 0 0 14px rgba(0, 220, 255, 0.2);
+    }
+
+    .subsystem-chip.active .subsystem-dot {
+      opacity: 1;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .subsystem-chip.chip-thinking.active { color: #c084fc; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.14); }
+    .subsystem-chip.chip-speaking.active { color: #34d399; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.14); }
+    .subsystem-chip.chip-researching.active { color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.14); }
+    .subsystem-chip.chip-coding.active { color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.14); }
+    .subsystem-chip.chip-planning.active { color: #818cf8; border-color: rgba(129, 140, 248, 0.4); background: rgba(129, 140, 248, 0.14); }
+
+    /* =========================================================================
+       8. FLOATING MINIMIZED RESPONSE WINDOW
+       ========================================================================= */
     .floating-response-window {
       position: fixed;
       bottom: 24px;
@@ -624,14 +1081,13 @@
       -webkit-backdrop-filter: blur(28px);
       border: 1px solid var(--accent);
       border-radius: 16px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 210, 255, 0.25);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 220, 255, 0.25);
       padding: 18px;
       z-index: 1000;
       display: none;
       flex-direction: column;
       gap: 12px;
       animation: floating-slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-      transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
     @keyframes floating-slide-in {
@@ -670,11 +1126,13 @@
       overflow-y: auto;
       font-size: 13.5px;
       line-height: 1.55;
-      color: #e6edf3;
+      color: #e6edf8;
       padding-right: 4px;
     }
 
-    /* Model Selection Modal */
+    /* =========================================================================
+       9. MODALS & POPUPS (MODEL SELECTOR & PERMISSIONS)
+       ========================================================================= */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -687,17 +1145,17 @@
     }
 
     .modal {
-      width: 540px;
+      width: 560px;
       max-height: 90vh;
       overflow-y: auto;
       background: rgba(10, 16, 30, 0.96);
       border: 1px solid var(--panel-border-bright);
-      border-radius: var(--radius);
+      border-radius: var(--radius-md);
       padding: 24px;
       display: flex;
       flex-direction: column;
       gap: 16px;
-      box-shadow: 0 0 40px rgba(0, 210, 255, 0.25);
+      box-shadow: 0 0 45px rgba(0, 220, 255, 0.28);
     }
 
     .modal-title {
@@ -709,7 +1167,6 @@
       gap: 8px;
     }
 
-    /* Filter Bar for Free vs Paid Models */
     .modal-filter-bar {
       display: flex;
       align-items: center;
@@ -737,13 +1194,9 @@
       transition: all 0.2s;
     }
 
-    .filter-pill:hover {
-      background: rgba(0, 210, 255, 0.12);
-      color: #fff;
-    }
-
+    .filter-pill:hover { background: rgba(0, 220, 255, 0.12); color: #fff; }
     .filter-pill.active {
-      background: rgba(0, 210, 255, 0.22);
+      background: rgba(0, 220, 255, 0.22);
       border-color: var(--accent);
       color: var(--accent-bright);
       box-shadow: 0 0 10px var(--accent-glow);
@@ -792,7 +1245,7 @@
 
     .modal-select option {
       background: #0d1424;
-      color: #e6edf3;
+      color: #e6edf8;
       font-weight: 400;
       padding: 4px 8px;
     }
@@ -809,22 +1262,21 @@
     }
 
     .model-badge-info.free {
-      color: #3fb950;
-      border-color: rgba(63, 185, 80, 0.3);
-      background: rgba(63, 185, 80, 0.08);
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.08);
     }
 
     .model-badge-info.paid {
-      color: #ffaa00;
-      border-color: rgba(255, 170, 0, 0.3);
-      background: rgba(255, 170, 0, 0.08);
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.08);
     }
 
-    /* Weight Sliders Section */
     .weight-section {
       background: rgba(6, 10, 18, 0.65);
       border: 1px solid var(--panel-border);
-      border-radius: var(--radius);
+      border-radius: var(--radius-md);
       padding: 14px;
       display: flex;
       flex-direction: column;
@@ -837,7 +1289,7 @@
       letter-spacing: 0.5px;
       color: var(--accent);
       text-transform: uppercase;
-      border-bottom: 1px solid rgba(0, 210, 255, 0.12);
+      border-bottom: 1px solid rgba(0, 220, 255, 0.12);
       padding-bottom: 6px;
     }
 
@@ -856,11 +1308,11 @@
 
     .weight-name {
       font-weight: 600;
-      color: #e6edf3;
+      color: #e6edf8;
     }
 
     .weight-val-badge {
-      background: rgba(0, 210, 255, 0.15);
+      background: rgba(0, 220, 255, 0.15);
       border: 1px solid var(--accent);
       color: var(--accent-bright);
       font-size: 11px;
@@ -894,7 +1346,7 @@
 
     .weight-slider::-webkit-slider-thumb:hover {
       transform: scale(1.2);
-      background: #33dcff;
+      background: #33ecff;
     }
 
     .weight-sub-row {
@@ -936,8 +1388,8 @@
     }
 
     .btn-approve:hover {
-      background: #33dcff;
-      box-shadow: 0 0 12px var(--accent-glow);
+      background: #33ecff;
+      box-shadow: 0 0 14px var(--accent-glow);
     }
 
     .btn-cancel {
@@ -945,46 +1397,51 @@
       color: #fff;
     }
 
-    .btn-cancel:hover {
-      background: rgba(255, 255, 255, 0.18);
-    }
+    .btn-cancel:hover { background: rgba(255, 255, 255, 0.18); }
 
     .btn-always {
-      background: rgba(163, 113, 247, 0.22);
+      background: rgba(168, 85, 247, 0.22);
       border: 1px solid var(--accent-purple);
-      color: #d2a8ff;
+      color: #d8b4fe;
     }
 
     .btn-always:hover {
-      background: rgba(163, 113, 247, 0.38);
-      box-shadow: 0 0 12px rgba(163, 113, 247, 0.5);
+      background: rgba(168, 85, 247, 0.38);
+      box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
     }
 
     /* Responsive adjustments */
-    @media (max-width: 900px) {
-      .sidebar {
-        width: 70px;
-        padding: 16px 8px;
-      }
-      .brand-title, .brand-sub, .session-section, .system-status {
-        display: none;
-      }
+    @media (max-width: 1024px) {
+      .sidebar { width: 70px; padding: 16px 8px; }
+      .brand-title, .brand-sub, .session-section, .user-info { display: none; }
+      .active-model-card { display: none; }
     }
   </style>
 </head>
 <body>
-  <!-- Ambient Space Background -->
-  <div class="space-backdrop"></div>
+  <!-- =========================================================================
+       1. SCENIC DUSK PENTHOUSE BACKGROUND
+       ========================================================================= -->
+  <div class="space-backdrop">
+    <div class="dusk-horizon-glow"></div>
+    <div class="dusk-silhouette"></div>
+    <div class="dusk-city-lights"></div>
+    <div class="window-mullion mullion-left"></div>
+    <div class="window-mullion mullion-right"></div>
+    <div class="desk-surface"></div>
+  </div>
 
-  <!-- App UI Frame -->
+  <!-- =========================================================================
+       2. APP UI FRAME
+       ========================================================================= -->
   <div class="app-frame" id="appFrame">
-    <!-- Left Sidebar -->
+    <!-- Floating Translucent Left Navigation Rail -->
     <aside class="sidebar">
       <div class="brand">
         <div class="mini-reactor"></div>
         <div>
           <div class="brand-title">JARVIS</div>
-          <div class="brand-sub">Neural Core 2.0</div>
+          <div class="brand-sub">NEURAL CORE MK-VII</div>
         </div>
       </div>
 
@@ -993,41 +1450,111 @@
         <span id="statePillText">IDLE</span>
       </div>
 
+      <!-- Navigation Menu -->
+      <ul class="nav-menu">
+        <li class="nav-item active" id="navChat">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Chat</span>
+        </li>
+        <li class="nav-item" id="navModels">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m18 16 4-4-4-4"></path>
+            <path d="m6 8-4 4 4 4"></path>
+            <path d="m14.5 4-5 16"></path>
+          </svg>
+          <span>Models</span>
+        </li>
+        <li class="nav-item" id="navAgents">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Agents</span>
+        </li>
+        <li class="nav-item" id="navTools">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+          </svg>
+          <span>Tools</span>
+        </li>
+        <li class="nav-item" id="navTasks">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 11 12 14 22 4"></polyline>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          </svg>
+          <span>Tasks</span>
+        </li>
+        <li class="nav-item" id="navProjects">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Projects</span>
+        </li>
+        <li class="nav-item" id="navKnowledge">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+          </svg>
+          <span>Knowledge</span>
+        </li>
+        <li class="nav-item" id="navSettings">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <span>Settings</span>
+        </li>
+      </ul>
+
+      <!-- Active Sessions Section -->
       <div class="session-section">
         <div class="section-label">
           <span>Active Sessions</span>
-          <button class="icon-btn" id="newSessionBtn" title="New Session" style="width: 24px; height: 24px;">+</button>
+          <button class="icon-btn" id="newSessionBtn" title="New Session" style="width: 22px; height: 22px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
         </div>
         <ul class="session-list" id="sessionList">
-          <li class="session-item active">General Session</li>
+          <li class="session-item active" data-id="default">General Session</li>
         </ul>
       </div>
 
-      <div class="system-status">
-        <div class="status-row">
-          <span>OpenCode Daemon</span>
-          <span id="opencodeStatus"><span class="status-indicator"></span> Connected</span>
+      <!-- Bottom User Profile Capsule -->
+      <div class="user-profile-capsule">
+        <div class="user-avatar">S</div>
+        <div class="user-info">
+          <div class="user-name">StretchWave</div>
+          <div class="user-status-row">
+            <span class="user-status-dot"></span>
+            <span>Online</span>
+          </div>
         </div>
-        <div class="status-row">
-          <span>Active Gateway</span>
-          <span style="color: var(--accent);" id="activeGatewayText">OpenCode Local</span>
-        </div>
-        <div class="status-row">
-          <span>Direct Latency</span>
-          <span style="color: var(--accent-green);">Sub-50ms</span>
-        </div>
+        <span class="pro-badge">PRO</span>
       </div>
     </aside>
 
-    <!-- Main Workspace (Houses the sphere canvas directly behind the chat HUD) -->
+    <!-- =========================================================================
+       3. MAIN WORKSPACE WITH CANVAS & FOREGROUND HUD
+       ========================================================================= -->
     <main class="main-workspace" id="mainWorkspace">
-      <!-- Primary JARVIS Holographic Sphere Canvas -->
+      <!-- Primary Holographic Sphere Canvas (Behind Chat HUD) -->
       <canvas id="jarvisCoreCanvas"></canvas>
 
       <!-- Topbar HUD -->
       <header class="topbar">
         <div class="topbar-left">
-          <span style="font-weight: 600; font-size: 13.5px; letter-spacing: 0.5px;">SYSTEM STATUS:</span>
+          <!-- Real-Time Live Clock -->
+          <div class="clock-display" id="clockDisplay">
+            <span id="clockDate">Tue, Sep 30, 2026</span>
+            <span style="opacity: 0.3;">|</span>
+            <span class="clock-time" id="clockTime">03:42:00 PM</span>
+          </div>
+
           <span class="mode-badge fast" id="modeBadge">FAST PATH</span>
           <span style="font-size: 12.5px; color: var(--text-muted);" id="currentTaskDisplay">Autonomous Core Ready</span>
         </div>
@@ -1043,7 +1570,7 @@
             <option value="default">British Male (JARVIS Natural)</option>
           </select>
 
-          <!-- Model Profile Switcher -->
+          <!-- Model Switcher Button -->
           <button class="topbar-select" id="modelConfigBtn" title="Configure OpenCode Models">
             ⚙️ Models
           </button>
@@ -1053,50 +1580,134 @@
         </div>
       </header>
 
+      <!-- Floating Top-Right Active Model Card -->
+      <div class="active-model-card" id="activeModelCard">
+        <div class="card-header-row">
+          <div class="card-title">
+            <span class="card-status-dot"></span>
+            <span>ACTIVE MODEL</span>
+          </div>
+          <span class="card-tag" id="activeProviderTag">OPENCODE</span>
+        </div>
+        <div class="card-model-name" id="activeModelName">mimo-v2.6-flash-free</div>
+        <div class="card-meta-row">
+          <span id="activeModelVariant">Variant: default</span>
+          <span>•</span>
+          <span id="activeRoutingBias">Bias: 0.50 (Balanced)</span>
+        </div>
+        <div class="quick-chips-row">
+          <div class="action-chip" id="chipActionWeb">🌐 Web</div>
+          <div class="action-chip" id="chipActionAnalyze">🔍 Analyze</div>
+          <div class="action-chip" id="chipActionGenerate">✨ Generate</div>
+          <div class="action-chip" id="chipActionPlan">📋 Plan</div>
+        </div>
+      </div>
+
       <!-- Glassmorphic Chat Log (Sphere remains visible through transparent HUD) -->
       <section class="chat-container" id="chatContainer">
         <div class="message jarvis">
           <div class="message-avatar">J</div>
           <div class="message-content">
-            Good day, Sir. All systems are operational. OpenCode is online as our unified model gateway. How may I assist you today?
+            Good day, Sir. All neural systems are online. OpenCode is connected as our unified model gateway. How may I assist you today?
           </div>
         </div>
       </section>
 
-      <!-- Bottom Input HUD -->
-      <footer class="input-bar">
-        <div class="input-container">
-          <input type="text" class="prompt-input" id="promptInput" placeholder="Ask Jarvis, calculate, inspect project, or speak..." autocomplete="off">
-          
-          <!-- Stop Speaking Button -->
-          <button class="icon-btn stop-btn" id="stopBtn" title="Stop Speaking">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="6" width="12" height="12" rx="2"></rect>
-            </svg>
-          </button>
+      <!-- Centered Bottom Composer Capsule & Subsystem Status Chips -->
+      <footer class="composer-area">
+        <div class="composer-capsule">
+          <div class="composer-tools-left">
+            <!-- Add context / attachment -->
+            <button class="icon-btn" id="attachBtn" title="Add File or Context">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+            <!-- Web search toggle -->
+            <button class="icon-btn" id="webSearchToggle" title="Toggle Real-Time Web Search">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+            </button>
+            <!-- Image / Media -->
+            <button class="icon-btn" id="imageBtn" title="Media & Image Analysis">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </button>
+          </div>
 
-          <!-- Push to Talk Mic Button -->
-          <button class="icon-btn mic-btn" id="micBtn" title="Push-to-Talk Voice Input">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-              <line x1="12" y1="19" x2="12" y2="22"></line>
-            </svg>
-          </button>
+          <!-- Main Input Field -->
+          <input type="text" class="composer-input" id="promptInput" placeholder="Ask Jarvis, calculate, inspect project, or speak..." autocomplete="off">
 
-          <!-- Send Prompt Button -->
-          <button class="icon-btn send-btn" id="sendBtn" title="Send Command">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
+          <div class="composer-controls-right">
+            <!-- Active Model Pill inside Composer -->
+            <div class="composer-model-pill" id="composerModelPill" title="Click to Switch Models">
+              <span>⚡</span>
+              <span id="composerModelPillText">mimo-v2.6-flash-free</span>
+            </div>
+
+            <!-- Stop Speaking Button -->
+            <button class="icon-btn stop-btn" id="stopBtn" title="Stop Speaking">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+              </svg>
+            </button>
+
+            <!-- Push to Talk Mic Button -->
+            <button class="icon-btn mic-btn" id="micBtn" title="Push-to-Talk Voice Input">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="22"></line>
+              </svg>
+            </button>
+
+            <!-- Send Prompt Button -->
+            <button class="send-btn" id="sendBtn" title="Send Command">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Subsystem Status Chips Row -->
+        <div class="status-chips-row">
+          <div class="subsystem-chip chip-thinking" id="chipThinking">
+            <span class="subsystem-dot"></span>
+            <span>Thinking</span>
+          </div>
+          <div class="subsystem-chip chip-speaking" id="chipSpeaking">
+            <span class="subsystem-dot"></span>
+            <span>Speaking</span>
+          </div>
+          <div class="subsystem-chip chip-researching" id="chipResearching">
+            <span class="subsystem-dot"></span>
+            <span>Researching</span>
+          </div>
+          <div class="subsystem-chip chip-coding" id="chipCoding">
+            <span class="subsystem-dot"></span>
+            <span>Coding</span>
+          </div>
+          <div class="subsystem-chip chip-planning" id="chipPlanning">
+            <span class="subsystem-dot"></span>
+            <span>Planning</span>
+          </div>
         </div>
       </footer>
     </main>
   </div>
 
-  <!-- Floating Minimized Response Window (Shown ONLY when minimized & actively responding/speaking) -->
+  <!-- =========================================================================
+       4. FLOATING MINIMIZED RESPONSE WINDOW
+       ========================================================================= -->
   <div class="floating-response-window" id="floatingResponseWindow">
     <div class="floating-header">
       <div class="floating-brand">
@@ -1114,7 +1725,9 @@
     <div class="floating-text-container" id="floatingText"></div>
   </div>
 
-  <!-- Model Configuration Modal -->
+  <!-- =========================================================================
+       5. MODEL CONFIGURATION MODAL
+       ========================================================================= -->
   <div class="modal-overlay" id="modelModal">
     <div class="modal">
       <div class="modal-title">
@@ -1125,9 +1738,9 @@
       <div class="modal-filter-bar">
         <span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px;">Filter Catalog:</span>
         <div class="filter-pills">
-          <button class="filter-pill active" id="filterAllBtn">All (27)</button>
-          <button class="filter-pill" id="filterFreeBtn">🆓 Free Tier (8)</button>
-          <button class="filter-pill" id="filterPaidBtn">💳 Paid Models (19)</button>
+          <button class="filter-pill active" id="filterAllBtn">All</button>
+          <button class="filter-pill" id="filterFreeBtn">🆓 Free Tier</button>
+          <button class="filter-pill" id="filterPaidBtn">💳 Paid Models</button>
         </div>
       </div>
 
@@ -1176,17 +1789,15 @@
       <div class="weight-section">
         <div class="weight-title">⚖️ Model & Routing Semantics</div>
 
-        <!-- Model Governance Notice (Requirement 7) -->
-        <div class="weight-slider-group" style="background: rgba(0, 240, 255, 0.04); border: 1px dashed rgba(0, 240, 255, 0.2); padding: 12px; border-radius: 8px;">
+        <div class="weight-slider-group" style="background: rgba(0, 220, 255, 0.04); border: 1px dashed rgba(0, 220, 255, 0.2); padding: 12px; border-radius: 8px;">
           <div class="weight-label-row">
-            <span class="weight-name" style="color: var(--accent-cyan);">💡 OpenCode Model Governance:</span>
+            <span class="weight-name" style="color: var(--accent);">💡 OpenCode Model Governance:</span>
           </div>
-          <div class="weight-desc" style="margin-top: 4px; color: var(--text-secondary); font-size: 12px; line-height: 1.4;">
-            Model creativity, reasoning budgets, and sampling behavior are governed through official OpenCode model variants selected above or internal OpenCode provider settings. Generic arbitrary temperature injection is not used.
+          <div class="weight-desc" style="margin-top: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.4;">
+            Model creativity, reasoning budgets, and sampling behavior are governed through official OpenCode model variants selected above or internal OpenCode provider settings.
           </div>
         </div>
 
-        <!-- Agent vs Fast Routing Weight -->
         <div class="weight-slider-group">
           <div class="weight-label-row">
             <span class="weight-name">Agent Routing Bias (Intent Threshold):</span>
@@ -1208,16 +1819,18 @@
 
       <div class="modal-buttons">
         <button class="btn btn-cancel" id="btnModelCancel">Cancel</button>
-        <button class="btn btn-cancel" id="btnModelSwitchSession" style="border-color: var(--accent-cyan); color: var(--accent-cyan);" title="Apply to active OpenCode session only">Switch (Session Only)</button>
+        <button class="btn btn-cancel" id="btnModelSwitchSession" style="border-color: var(--accent); color: var(--accent);" title="Apply to active OpenCode session only">Switch (Session Only)</button>
         <button class="btn btn-approve" id="btnModelSave" title="Update persisted config and switch active OpenCode session">Save & Switch</button>
       </div>
     </div>
   </div>
 
-  <!-- Permission Confirmation Modal -->
+  <!-- =========================================================================
+       6. PERMISSION CONFIRMATION MODAL
+       ========================================================================= -->
   <div class="modal-overlay" id="confirmModal">
     <div class="modal">
-      <div class="modal-title" style="color: var(--accent-orange);">
+      <div class="modal-title" style="color: var(--accent-amber);">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
           <line x1="12" y1="9" x2="12" y2="13"></line>
@@ -1237,6 +1850,9 @@
     </div>
   </div>
 
+  <!-- =========================================================================
+       7. JAVASCRIPT APPLICATION LOGIC
+       ========================================================================= -->
   <script>
     /**
      * JARVIS State Machine
@@ -1347,12 +1963,10 @@
         this.isSpeakingFeed = true;
         if (!this.ctx || !this.analyser) return;
 
-        // Build dual-formant resonant synthesizer to feed real fluctuating audio into analyser
         if (!this.voiceSynthGain) {
           this.voiceSynthGain = this.ctx.createGain();
           this.voiceSynthGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
 
-          // Formant filter (vowel resonance peak around 650Hz)
           this.voiceFilter = this.ctx.createBiquadFilter();
           this.voiceFilter.type = "bandpass";
           this.voiceFilter.frequency.setValueAtTime(650, this.ctx.currentTime);
@@ -1361,7 +1975,6 @@
           this.voiceFilter.connect(this.voiceSynthGain);
           this.voiceSynthGain.connect(this.analyser);
 
-          // Route to muted destination node so audio clock renders frames
           const mute = this.ctx.createGain();
           mute.gain.value = 0.0001;
           this.voiceSynthGain.connect(mute);
@@ -1369,7 +1982,6 @@
         }
 
         if (!this.voiceOsc1) {
-          // Fundamental pitch oscillator (mature male resonance 130-160Hz)
           this.voiceOsc1 = this.ctx.createOscillator();
           this.voiceOsc1.type = "sawtooth";
           this.voiceOsc1.frequency.setValueAtTime(145, this.ctx.currentTime);
@@ -1378,7 +1990,6 @@
         }
 
         if (!this.voiceOsc2) {
-          // Second formant harmonic (vocal overtone 290Hz)
           this.voiceOsc2 = this.ctx.createOscillator();
           this.voiceOsc2.type = "sine";
           this.voiceOsc2.frequency.setValueAtTime(290, this.ctx.currentTime);
@@ -1386,7 +1997,6 @@
           this.voiceOsc2.start();
         }
 
-        // Pulse syllable envelope to make audio actively undulating with voice cadence
         this.pulseSyllable();
         if (this.syllableInterval) clearInterval(this.syllableInterval);
         this.syllableInterval = setInterval(() => {
@@ -1462,18 +2072,19 @@
     }
 
     const audioEngine = new AudioEngine();
-
-    // Auto-unlock AudioContext on first user interaction
     window.addEventListener("click", () => audioEngine.ensureUnlocked(), { once: true });
     window.addEventListener("keydown", () => audioEngine.ensureUnlocked(), { once: true });
 
     /**
-     * Primary JARVIS Holographic Sphere Visualizer
+     * =========================================================================
+     * CINEMATIC HOLOGRAPHIC SPHERE VISUALIZER (Reference 2 Inspired)
+     * =========================================================================
      * Renders directly onto #jarvisCoreCanvas:
-     * - Multi-ring concentric 3D perspective gyroscope
-     * - Flowing inner waveform ribbon reacting directly to audio
-     * - Fine orbiting energy particles and trails
-     * - Holographic glow, reactive distortion, and central neural emblem
+     * - Occupies 55% - 70% of main workspace width
+     * - Concentric orbital rings with degree tick marks and rotating segments
+     * - Central glowing JARVIS chevron emblem (V-shield) with intense bloom
+     * - Internal 3D particulate energy waveform ribbon reacting to audio
+     * - Orbiting 3D particulate starfield
      */
     class SphereVisualizer {
       constructor(canvasId) {
@@ -1496,7 +2107,7 @@
 
         // Particle System
         this.particles = [];
-        this.numParticles = 120;
+        this.numParticles = 160;
         this.initParticles();
 
         // Orbital angles
@@ -1504,12 +2115,13 @@
         this.ringAngle2 = 0;
         this.ringAngle3 = 0;
         this.ringAngle4 = 0;
+        this.tickAngle = 0;
 
         this.resize();
         window.addEventListener("resize", () => this.resize());
         window.addEventListener("mousemove", (e) => {
-          this.targetMouseX = (e.clientX - window.innerWidth / 2) * 0.035;
-          this.targetMouseY = (e.clientY - window.innerHeight / 2) * 0.035;
+          this.targetMouseX = (e.clientX - window.innerWidth / 2) * 0.03;
+          this.targetMouseY = (e.clientY - window.innerHeight / 2) * 0.03;
         });
 
         this.animate = this.animate.bind(this);
@@ -1531,10 +2143,10 @@
           this.particles.push({
             theta: Math.random() * Math.PI * 2,
             phi: Math.acos((Math.random() * 2) - 1),
-            radiusRatio: 0.35 + Math.random() * 0.65,
-            speed: 0.005 + Math.random() * 0.008,
-            size: 1.2 + Math.random() * 1.8,
-            alpha: 0.3 + Math.random() * 0.6,
+            radiusRatio: 0.3 + Math.random() * 0.7,
+            speed: 0.004 + Math.random() * 0.007,
+            size: 1.0 + Math.random() * 2.2,
+            alpha: 0.25 + Math.random() * 0.65,
           });
         }
       }
@@ -1542,43 +2154,39 @@
       animate(timestamp) {
         requestAnimationFrame(this.animate);
 
-        // Smooth mouse parallax
         this.mouseX += (this.targetMouseX - this.mouseX) * 0.08;
         this.mouseY += (this.targetMouseY - this.mouseY) * 0.08;
 
-        // Fetch real-time audio analysis
         const analysis = audioEngine.getAnalysis();
         const state = stateMgr.getState();
 
-        // Organic state-driven baselines to ensure the visualizer is ALWAYS alive
-        let minAmp = 0.07;
-        let minBass = 0.09;
-        let minMid = 0.07;
-        let minTreble = 0.05;
+        let minAmp = 0.08;
+        let minBass = 0.10;
+        let minMid = 0.08;
+        let minTreble = 0.06;
 
         if (state === "SPEAKING") {
           const pulse = Math.sin(timestamp * 0.008);
-          minAmp = 0.34 + pulse * 0.14;
-          minBass = 0.42 + Math.sin(timestamp * 0.007) * 0.18;
-          minMid = 0.36 + Math.cos(timestamp * 0.01) * 0.15;
-          minTreble = 0.32 + Math.sin(timestamp * 0.012) * 0.14;
+          minAmp = 0.36 + pulse * 0.15;
+          minBass = 0.44 + Math.sin(timestamp * 0.007) * 0.18;
+          minMid = 0.38 + Math.cos(timestamp * 0.01) * 0.15;
+          minTreble = 0.34 + Math.sin(timestamp * 0.012) * 0.14;
         } else if (state === "THINKING") {
-          minAmp = 0.18 + Math.sin(timestamp * 0.006) * 0.08;
-          minBass = 0.16 + Math.sin(timestamp * 0.005) * 0.06;
-          minMid = 0.26 + Math.sin(timestamp * 0.007) * 0.1;
-          minTreble = 0.22 + Math.cos(timestamp * 0.009) * 0.08;
+          minAmp = 0.20 + Math.sin(timestamp * 0.006) * 0.08;
+          minBass = 0.18 + Math.sin(timestamp * 0.005) * 0.06;
+          minMid = 0.28 + Math.sin(timestamp * 0.007) * 0.1;
+          minTreble = 0.24 + Math.cos(timestamp * 0.009) * 0.08;
         } else if (state === "LISTENING") {
-          minAmp = 0.24 + Math.sin(timestamp * 0.005) * 0.1;
-          minBass = 0.28 + Math.sin(timestamp * 0.004) * 0.1;
-          minMid = 0.22 + Math.sin(timestamp * 0.006) * 0.08;
-          minTreble = 0.20 + Math.cos(timestamp * 0.008) * 0.06;
+          minAmp = 0.25 + Math.sin(timestamp * 0.005) * 0.1;
+          minBass = 0.30 + Math.sin(timestamp * 0.004) * 0.1;
+          minMid = 0.24 + Math.sin(timestamp * 0.006) * 0.08;
+          minTreble = 0.22 + Math.cos(timestamp * 0.008) * 0.06;
         } else {
-          // IDLE: gentle breathing
           const breathe = Math.sin(timestamp * 0.002);
-          minAmp = 0.07 + breathe * 0.03;
-          minBass = 0.09 + breathe * 0.04;
-          minMid = 0.07 + breathe * 0.03;
-          minTreble = 0.05 + breathe * 0.02;
+          minAmp = 0.08 + breathe * 0.03;
+          minBass = 0.10 + breathe * 0.04;
+          minMid = 0.08 + breathe * 0.03;
+          minTreble = 0.06 + breathe * 0.02;
         }
 
         const targetAmp = Math.max(analysis.amplitude, minAmp);
@@ -1597,34 +2205,34 @@
       render(timestamp, timeDomainData) {
         const ctx = this.ctx;
         const dpr = window.devicePixelRatio || 1;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Always cleanly match CSS pixel grid
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, this.width, this.height);
 
-        // Centered coordinates within the main workspace
+        // Core positioned slightly upper-center of the main workspace
         const cx = (this.width / 2) + this.mouseX;
-        const cy = (this.height / 2) + this.mouseY;
+        const cy = (this.height * 0.44) + this.mouseY;
 
-        // Large prominent sphere occupying central background
-        const baseRadius = Math.min(this.width * 0.35, this.height * 0.38, 330);
-        const dynamicRadius = baseRadius * (1 + (this.smoothedAmp * 0.2));
+        // Massive scale: occupying 55% to 70% of viewport width
+        const maxPossibleRadius = Math.min(this.width * 0.32, this.height * 0.42, 380);
+        const baseRadius = Math.max(maxPossibleRadius, 260);
+        const dynamicRadius = baseRadius * (1 + (this.smoothedAmp * 0.18));
 
         const state = stateMgr.getState();
 
-        // Color definitions based on state
-        let primaryColor = "0, 210, 255"; // Cyan default
-
+        let primaryColor = "0, 229, 255"; // Cyan default
         if (state === "LISTENING") {
-          primaryColor = "255, 170, 0"; // Warm Amber
+          primaryColor = "245, 158, 11"; // Amber
         } else if (state === "THINKING") {
-          primaryColor = "163, 113, 247"; // Neural Violet
+          primaryColor = "168, 85, 247"; // Purple
         } else if (state === "SPEAKING") {
-          primaryColor = "0, 245, 255"; // Bright Electric Cyan
+          primaryColor = "51, 236, 255"; // Bright Electric Cyan
         }
 
         // 1. Holographic Sphere Glass Ambient Body
-        const radialGlow = ctx.createRadialGradient(cx, cy, dynamicRadius * 0.15, cx, cy, dynamicRadius * 1.35);
-        radialGlow.addColorStop(0, `rgba(${primaryColor}, ${0.14 + this.smoothedAmp * 0.22})`);
-        radialGlow.addColorStop(0.65, `rgba(${primaryColor}, ${0.05 + this.smoothedAmp * 0.08})`);
+        const radialGlow = ctx.createRadialGradient(cx, cy, dynamicRadius * 0.1, cx, cy, dynamicRadius * 1.35);
+        radialGlow.addColorStop(0, `rgba(${primaryColor}, ${0.16 + this.smoothedAmp * 0.22})`);
+        radialGlow.addColorStop(0.5, `rgba(${primaryColor}, ${0.06 + this.smoothedAmp * 0.08})`);
+        radialGlow.addColorStop(0.85, `rgba(${primaryColor}, ${0.02})`);
         radialGlow.addColorStop(1, "transparent");
 
         ctx.fillStyle = radialGlow;
@@ -1633,27 +2241,31 @@
         ctx.fill();
 
         // 2. Translucent Glass Sphere Perimeter & Refraction Rim
-        ctx.strokeStyle = `rgba(${primaryColor}, ${0.28 + this.smoothedAmp * 0.4})`;
-        ctx.lineWidth = 2.0;
+        ctx.strokeStyle = `rgba(${primaryColor}, ${0.32 + this.smoothedAmp * 0.4})`;
+        ctx.lineWidth = 2.2;
         ctx.shadowColor = `rgba(${primaryColor}, 0.85)`;
-        ctx.shadowBlur = 18 * (1 + this.smoothedAmp);
+        ctx.shadowBlur = 20 * (1 + this.smoothedAmp);
         ctx.beginPath();
         ctx.arc(cx, cy, dynamicRadius, 0, Math.PI * 2);
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // 3. Orbiting Concentric 3D Perspective Rings
+        // 3. Concentric Orbital Rings with Degree Ticks
         const rotSpeed = state === "THINKING" ? 0.024 : (state === "SPEAKING" ? 0.018 : 0.007);
         this.ringAngle1 += rotSpeed;
         this.ringAngle2 -= rotSpeed * 0.85;
         this.ringAngle3 += rotSpeed * 0.65;
         this.ringAngle4 -= rotSpeed * 1.1;
+        this.tickAngle += 0.002;
+
+        // Outer Compass Ring with Dashed Ticks
+        this.drawCompassRing(cx, cy, dynamicRadius * 1.12, primaryColor);
 
         // Equatorial Ring (Tilted 3D Ellipse) - Expands with bass
         this.drawTiltedRing(cx, cy, dynamicRadius * (1.1 + this.smoothedBass * 0.15), dynamicRadius * 0.42, this.ringAngle1, `rgba(${primaryColor}, ${0.45 + this.smoothedBass * 0.5})`, 2.2);
         
         // Polar Ring (Cross-Angle Ellipse)
-        this.drawTiltedRing(cx, cy, dynamicRadius * 0.45, dynamicRadius * (1.08 + this.smoothedMid * 0.12), this.ringAngle2, `rgba(${primaryColor}, ${0.4 + this.smoothedMid * 0.45})`, 1.6);
+        this.drawTiltedRing(cx, cy, dynamicRadius * 0.44, dynamicRadius * (1.08 + this.smoothedMid * 0.12), this.ringAngle2, `rgba(${primaryColor}, ${0.4 + this.smoothedMid * 0.45})`, 1.6);
 
         // Gyroscope Tilted Angle 1 (45 deg)
         ctx.save();
@@ -1675,8 +2287,38 @@
         // 5. Orbiting 3D Particle Cloud & Energy Trails
         this.drawParticles(cx, cy, dynamicRadius, primaryColor);
 
-        // 6. Central Neural Emblem / JARVIS Arc Core
-        this.drawCentralEmblem(cx, cy, dynamicRadius * 0.22, primaryColor, timestamp);
+        // 6. Central Glowing JARVIS Chevron Emblem (V-Shield)
+        this.drawChevronEmblem(cx, cy, dynamicRadius * 0.22, primaryColor, timestamp);
+      }
+
+      drawCompassRing(cx, cy, radius, primaryColor) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(this.tickAngle);
+
+        const totalTicks = 72;
+        ctx.strokeStyle = `rgba(${primaryColor}, 0.25)`;
+        ctx.lineWidth = 1;
+
+        for (let i = 0; i < totalTicks; i++) {
+          const angle = (i * Math.PI * 2) / totalTicks;
+          const isMajor = i % 9 === 0;
+          const isMid = i % 3 === 0;
+          const len = isMajor ? 8 : (isMid ? 5 : 2.5);
+
+          const x1 = Math.cos(angle) * radius;
+          const y1 = Math.sin(angle) * radius;
+          const x2 = Math.cos(angle) * (radius + len);
+          const y2 = Math.sin(angle) * (radius + len);
+
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
       }
 
       drawTiltedRing(cx, cy, rx, ry, rotationAngle, color, width, dashed = false) {
@@ -1701,9 +2343,9 @@
         const ny = Math.sin(nodeAngle) * ry;
         ctx.fillStyle = "#fff";
         ctx.shadowColor = color;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.beginPath();
-        ctx.arc(nx, ny, 3.4, 0, Math.PI * 2);
+        ctx.arc(nx, ny, 3.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
 
@@ -1712,7 +2354,7 @@
 
       drawInnerWaveform(cx, cy, maxRadius, timeDomain, primaryColor, timestamp, state) {
         const ctx = this.ctx;
-        const points = 72;
+        const points = 84;
         ctx.save();
         ctx.beginPath();
 
@@ -1724,7 +2366,6 @@
           const angle = i * step;
           let offset = 0;
 
-          // Check if timeDomain has active non-silent audio data
           if (timeDomain && timeDomain.length > 0) {
             const dataIndex = Math.floor((i / points) * (timeDomain.length / 2));
             const val = timeDomain[dataIndex];
@@ -1734,7 +2375,6 @@
             }
           }
 
-          // Fluid organic fallback so waveform is ALWAYS beautifully rippling and alive
           if (offset === 0) {
             const harmonic = Math.sin(angle * waveFreq + timestamp * waveSpeed) * 0.6 +
                              Math.cos(angle * (waveFreq * 0.5) - timestamp * waveSpeed * 1.3) * 0.4;
@@ -1750,10 +2390,10 @@
         }
 
         ctx.closePath();
-        ctx.strokeStyle = `rgba(${primaryColor}, ${0.65 + this.smoothedAmp * 0.35})`;
-        ctx.lineWidth = 2.4;
-        ctx.shadowColor = `rgba(${primaryColor}, 0.85)`;
-        ctx.shadowBlur = 16;
+        ctx.strokeStyle = `rgba(${primaryColor}, ${0.7 + this.smoothedAmp * 0.3})`;
+        ctx.lineWidth = 2.6;
+        ctx.shadowColor = `rgba(${primaryColor}, 0.9)`;
+        ctx.shadowBlur = 18;
         ctx.stroke();
         ctx.shadowBlur = 0;
         ctx.restore();
@@ -1766,11 +2406,10 @@
         for (const p of this.particles) {
           p.theta += p.speed * speedMultiplier;
           
-          // 3D spherical coordinates projected
           const r = sphereRadius * p.radiusRatio;
           const x = cx + r * Math.sin(p.phi) * Math.cos(p.theta);
           const y = cy + r * Math.sin(p.phi) * Math.sin(p.theta);
-          const depth = Math.cos(p.phi); // -1 (back) to +1 (front)
+          const depth = Math.cos(p.phi);
 
           const apparentSize = p.size * (1 + depth * 0.35);
           const apparentAlpha = Math.max(0.12, (p.alpha + (this.smoothedTreble * 0.45)) * (0.6 + depth * 0.4));
@@ -1782,40 +2421,62 @@
         }
       }
 
-      drawCentralEmblem(cx, cy, radius, primaryColor, timestamp) {
+      /**
+       * Central Glowing JARVIS Chevron Emblem (V-Shield)
+       * Inspired by Reference Image 2: inverted delta / chevron geometry with inner reactor node.
+       */
+      drawChevronEmblem(cx, cy, size, primaryColor, timestamp) {
         const ctx = this.ctx;
         ctx.save();
         ctx.translate(cx, cy);
 
-        // Core expands and pulses dynamically with bass
-        const scale = 1 + (this.smoothedBass * 0.28);
-        ctx.scale(scale, scale);
+        const pulseScale = 1 + (this.smoothedBass * 0.28);
+        ctx.scale(pulseScale, pulseScale);
 
-        // Core Outer Ring
-        ctx.strokeStyle = `rgba(${primaryColor}, 0.85)`;
-        ctx.lineWidth = 2;
-        ctx.shadowColor = `rgba(${primaryColor}, 0.9)`;
-        ctx.shadowBlur = 18;
+        // Core glow aura
+        ctx.shadowColor = `rgba(${primaryColor}, 0.95)`;
+        ctx.shadowBlur = 24 * (1 + this.smoothedAmp);
+
+        // Outer Chevron V-Wings
+        ctx.strokeStyle = `rgba(${primaryColor}, 0.9)`;
+        ctx.lineWidth = 3.0;
         ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        // Top-left wing tip down to bottom center point, up to top-right wing tip
+        const w = size * 1.25;
+        const h = size * 1.35;
+        ctx.moveTo(-w, -h * 0.35);
+        ctx.lineTo(-w * 0.55, -h * 0.05);
+        ctx.lineTo(0, h * 0.85); // sharp bottom point
+        ctx.lineTo(w * 0.55, -h * 0.05);
+        ctx.lineTo(w, -h * 0.35);
         ctx.stroke();
 
-        // 3 Rotating Outer Arc Segments
-        const segRot = timestamp * 0.0022;
-        ctx.rotate(segRot);
-        for (let i = 0; i < 3; i++) {
-          const a = (i * Math.PI * 2) / 3;
-          ctx.beginPath();
-          ctx.arc(0, 0, radius * 0.72, a, a + 1.25);
-          ctx.lineWidth = 3.2;
-          ctx.stroke();
-        }
-
-        // Inner Glowing Reactor Core
+        // Inner Chevron V
+        ctx.strokeStyle = `rgba(${primaryColor}, 0.65)`;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.arc(0, 0, radius * 0.38, 0, Math.PI * 2);
-        ctx.fillStyle = "#fff";
-        ctx.shadowBlur = 25;
+        ctx.moveTo(-w * 0.65, -h * 0.15);
+        ctx.lineTo(0, h * 0.55);
+        ctx.lineTo(w * 0.65, -h * 0.15);
+        ctx.stroke();
+
+        // Central Inverted Delta / Core Diamond
+        ctx.fillStyle = `rgba(${primaryColor}, 0.3)`;
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.25);
+        ctx.lineTo(-w * 0.25, -h * 0.1);
+        ctx.lineTo(w * 0.25, -h * 0.1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${primaryColor}, 0.85)`;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+
+        // High-intensity white center reactor point
+        ctx.fillStyle = "#ffffff";
+        ctx.shadowBlur = 30;
+        ctx.beginPath();
+        ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -1832,8 +2493,8 @@
         this.voices = [];
         this.selectedVoice = null;
         this.isSpeaking = false;
-        this.rate = 0.94; // Calm, articulate cadence
-        this.pitch = 0.88; // Mature, intelligent, low-to-mid pitch
+        this.rate = 0.94;
+        this.pitch = 0.88;
         this.currentUtterance = null;
         this.onWordBoundary = null;
         this.onFinish = null;
@@ -1854,7 +2515,6 @@
 
         voiceSelect.innerHTML = "";
 
-        // Look for best British male voices
         let bestVoice = null;
         for (const v of this.voices) {
           const opt = document.createElement("option");
@@ -1916,9 +2576,9 @@
           audioEngine.startSpeechSynthesisAudioFeed();
           const stopBtn = document.getElementById("stopBtn");
           if (stopBtn) stopBtn.classList.add("visible");
+          updateSubsystemChips({ speaking: true });
         };
 
-        // Real-time word boundary synchronization
         utter.onboundary = (event) => {
           if (event.name === "word") {
             audioEngine.pulseSyllable();
@@ -1955,6 +2615,7 @@
         audioEngine.stopSpeechSynthesisAudioFeed();
         const stopBtn = document.getElementById("stopBtn");
         if (stopBtn) stopBtn.classList.remove("visible");
+        updateSubsystemChips({ speaking: false });
         if (stateMgr.getState() === "SPEAKING") {
           stateMgr.setState("IDLE");
         }
@@ -2011,8 +2672,7 @@
     }
 
     /**
-     * Floating Response Window
-     * Shown ONLY when minimized & actively responding/speaking. Auto-dismisses 3s after speech.
+     * Floating Response Window (Shown when minimized & active)
      */
     class FloatingResponseManager {
       constructor() {
@@ -2094,7 +2754,7 @@
         const amp = analysis.amplitude;
         const timeData = analysis.timeDomain;
 
-        ctx.strokeStyle = "#00d2ff";
+        ctx.strokeStyle = "#00e5ff";
         ctx.lineWidth = 2;
         ctx.beginPath();
 
@@ -2118,8 +2778,6 @@
     }
 
     const floatingResp = new FloatingResponseManager();
-
-    // Track tab minimization / visibility change
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden && !floatingResp.isMinimized) {
         floatingResp.hide();
@@ -2131,9 +2789,7 @@
       floatingResp.setMinimized(true);
     });
 
-    /**
-     * Wire State Changes to UI Status Pill
-     */
+    // Wire state changes to status pill
     stateMgr.subscribe((newState) => {
       const statePill = document.getElementById("statePill");
       const statePillText = document.getElementById("statePillText");
@@ -2142,6 +2798,40 @@
         statePillText.textContent = newState;
       }
     });
+
+    // Subsystem chips state manager
+    function updateSubsystemChips(states) {
+      if (states.thinking !== undefined) {
+        document.getElementById("chipThinking").classList.toggle("active", states.thinking);
+      }
+      if (states.speaking !== undefined) {
+        document.getElementById("chipSpeaking").classList.toggle("active", states.speaking);
+      }
+      if (states.researching !== undefined) {
+        document.getElementById("chipResearching").classList.toggle("active", states.researching);
+      }
+      if (states.coding !== undefined) {
+        document.getElementById("chipCoding").classList.toggle("active", states.coding);
+      }
+      if (states.planning !== undefined) {
+        document.getElementById("chipPlanning").classList.toggle("active", states.planning);
+      }
+    }
+
+    // Live Date & Time Clock Updater
+    function updateClock() {
+      const now = new Date();
+      const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+      const dateStr = now.toLocaleDateString('en-US', options);
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+
+      const dateEl = document.getElementById("clockDate");
+      const timeEl = document.getElementById("clockTime");
+      if (dateEl) dateEl.textContent = dateStr;
+      if (timeEl) timeEl.textContent = timeStr;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
 
     // Initialize visualizer
     const sphereVisualizer = new SphereVisualizer("jarvisCoreCanvas");
@@ -2156,12 +2846,30 @@
     const stopBtn = document.getElementById("stopBtn");
     const modeBadge = document.getElementById("modeBadge");
     const testVoiceBtn = document.getElementById("testVoiceBtn");
+    const webSearchToggle = document.getElementById("webSearchToggle");
+    const composerModelPill = document.getElementById("composerModelPill");
+    const composerModelPillText = document.getElementById("composerModelPillText");
+    const activeModelName = document.getElementById("activeModelName");
+    const activeProviderTag = document.getElementById("activeProviderTag");
+    const activeModelVariant = document.getElementById("activeModelVariant");
+    const activeRoutingBias = document.getElementById("activeRoutingBias");
     const confirmModal = document.getElementById("confirmModal");
     const modalDetails = document.getElementById("modalDetails");
-    const btnApprove = document.getElementById("btnApprove");
-    const btnDeny = document.getElementById("btnDeny");
+    const sessionList = document.getElementById("sessionList");
+    const newSessionBtn = document.getElementById("newSessionBtn");
 
+    let currentSessionId = "default";
+    let isWebSearchActive = false;
     let currentRequestId = null;
+
+    webSearchToggle.addEventListener("click", () => {
+      isWebSearchActive = !isWebSearchActive;
+      webSearchToggle.classList.toggle("active", isWebSearchActive);
+    });
+
+    composerModelPill.addEventListener("click", () => {
+      document.getElementById("modelConfigBtn").click();
+    });
 
     function appendMessage(sender, text) {
       const msgDiv = document.createElement("div");
@@ -2183,6 +2891,24 @@
     function escapeHtml(str) {
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
+
+    // Quick Action Chips
+    document.getElementById("chipActionWeb").addEventListener("click", () => {
+      promptInput.value = "Search web for ";
+      promptInput.focus();
+    });
+    document.getElementById("chipActionAnalyze").addEventListener("click", () => {
+      promptInput.value = "Analyze code: ";
+      promptInput.focus();
+    });
+    document.getElementById("chipActionGenerate").addEventListener("click", () => {
+      promptInput.value = "Generate: ";
+      promptInput.focus();
+    });
+    document.getElementById("chipActionPlan").addEventListener("click", () => {
+      promptInput.value = "Plan task: ";
+      promptInput.focus();
+    });
 
     // Audition Voice & Core Visualizer
     testVoiceBtn.addEventListener("click", () => {
@@ -2208,9 +2934,14 @@
       audioEngine.ensureUnlocked();
       ttsService.stop();
 
+      const promptToSend = isWebSearchActive && !text.toLowerCase().startsWith("search ")
+        ? `Search the web for ${text}`
+        : text;
+
       appendMessage("user", text);
       promptInput.value = "";
       stateMgr.setState("THINKING");
+      updateSubsystemChips({ thinking: true, speaking: false, researching: false, coding: false, planning: false });
 
       const jarvisContent = appendMessage("jarvis", "");
       let activeProgress = null;
@@ -2224,7 +2955,10 @@
         const response = await fetch("/api/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: text })
+          body: JSON.stringify({ 
+            prompt: promptToSend, 
+            sessionId: currentSessionId !== "default" ? currentSessionId : undefined 
+          })
         });
 
         const reader = response.body.getReader();
@@ -2247,6 +2981,8 @@
 
               if (ev.type === "route") {
                 updateModeBadge(ev.route);
+                if (ev.route === "SEARCH") updateSubsystemChips({ researching: true });
+                else if (ev.route === "AGENT") updateSubsystemChips({ planning: true });
               } else if (ev.type === "progress") {
                 if (!activeProgress) {
                   activeProgress = document.createElement("div");
@@ -2254,6 +2990,14 @@
                   jarvisContent.appendChild(activeProgress);
                 }
                 activeProgress.textContent = ev.message;
+                const msgLower = (ev.message || "").toLowerCase();
+                if (msgLower.includes("code") || msgLower.includes("file") || msgLower.includes("inspect")) {
+                  updateSubsystemChips({ coding: true });
+                } else if (msgLower.includes("plan") || msgLower.includes("reason")) {
+                  updateSubsystemChips({ planning: true });
+                } else if (msgLower.includes("search") || msgLower.includes("fetch")) {
+                  updateSubsystemChips({ researching: true });
+                }
               } else if (ev.type === "tool") {
                 if (!activeProgress) {
                   activeProgress = document.createElement("div");
@@ -2261,6 +3005,8 @@
                   jarvisContent.appendChild(activeProgress);
                 }
                 activeProgress.textContent = `Tool [${ev.name}]: ${ev.status}`;
+                if ((ev.name || "").includes("search")) updateSubsystemChips({ researching: true });
+                else updateSubsystemChips({ coding: true });
               } else if (ev.type === "token") {
                 if (activeProgress) {
                   activeProgress.remove();
@@ -2280,6 +3026,7 @@
                   activeProgress = null;
                 }
                 stateMgr.setState("IDLE");
+                updateSubsystemChips({ thinking: false, speaking: false, researching: false, coding: false, planning: false });
                 const errDiv = document.createElement("div");
                 errDiv.className = "error-card";
                 errDiv.style.cssText = "color: #ff6b6b; background: rgba(255, 107, 107, 0.1); border: 1px solid rgba(255, 107, 107, 0.3); padding: 10px 14px; border-radius: 8px; margin-top: 8px; font-size: 13px; line-height: 1.5;";
@@ -2291,9 +3038,9 @@
                   activeProgress.remove();
                   activeProgress = null;
                 }
+                updateSubsystemChips({ thinking: false, researching: false, coding: false, planning: false });
                 const finalText = ev.fullText || fullAccumulatedText;
                 if (finalText && !jarvisContent.querySelector(".error-card")) {
-                  // Synchronized Speech Reveal
                   const spans = SpeechSynchronizer.prepareTextContainer(jarvisContent, finalText);
                   floatingResp.updateText(finalText);
 
@@ -2316,7 +3063,7 @@
                 if (ev.sources && ev.sources.length > 0) {
                   const sourcesDiv = document.createElement("div");
                   sourcesDiv.className = "sources-list";
-                  sourcesDiv.innerHTML = '<span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Sources</span>';
+                  sourcesDiv.innerHTML = '<span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Sources</span>';
                   for (const s of ev.sources) {
                     const link = document.createElement("a");
                     link.className = "source-link";
@@ -2333,6 +3080,7 @@
         }
       } catch (err) {
         stateMgr.setState("IDLE");
+        updateSubsystemChips({ thinking: false, speaking: false, researching: false, coding: false, planning: false });
         jarvisContent.textContent = "Error executing request: " + err.message;
         floatingResp.scheduleDismiss(3000);
       }
@@ -2391,9 +3139,10 @@
       micBtn.title = "Speech recognition not supported in this browser";
     }
 
-    // Modal Confirmation Actions: Default to once/reject; only deliberate Always Allow sends 'always'
+    // Modal Confirmation Actions
     const btnApproveOnce = document.getElementById("btnApproveOnce");
     const btnApproveAlways = document.getElementById("btnApproveAlways");
+    const btnDeny = document.getElementById("btnDeny");
 
     if (btnApproveOnce) {
       btnApproveOnce.addEventListener("click", async () => {
@@ -2466,6 +3215,24 @@
       const pid = (m.providerID || "").toLowerCase();
       const mid = (m.id || m.modelID || "").toLowerCase();
       return pid === "opencode" || mid.includes("free") || mid === "big-pickle";
+    }
+
+    function updateActiveModelCards(fastModel, agentModel, agentWeight) {
+      const activeM = fastModel || currentConfigured.fast || {};
+      const mId = activeM.modelID || activeM.id || "mimo-v2.6-flash-free";
+      const pId = (activeM.providerID || "opencode").toUpperCase();
+      const vId = activeM.variant || "default";
+
+      if (activeModelName) activeModelName.textContent = mId;
+      if (activeProviderTag) activeProviderTag.textContent = pId;
+      if (activeModelVariant) activeModelVariant.textContent = `Variant: ${vId}`;
+      if (composerModelPillText) composerModelPillText.textContent = mId;
+
+      const biasVal = agentWeight !== undefined ? agentWeight : (currentConfigured.agentWeight !== undefined ? currentConfigured.agentWeight : 0.50);
+      let biasLabel = "0.50 (Balanced)";
+      if (biasVal < 0.35) biasLabel = `${biasVal.toFixed(2)} (Fast Bias)`;
+      else if (biasVal > 0.65) biasLabel = `${biasVal.toFixed(2)} (Agent Bias)`;
+      if (activeRoutingBias) activeRoutingBias.textContent = `Bias: ${biasLabel}`;
     }
 
     function updateVariants(selectEl, variantSelectEl, currentVariant) {
@@ -2571,7 +3338,6 @@
           selectEl.appendChild(grpPaid);
         }
 
-        // Restore selection
         const targetModelID = isFast ? currentConfigured.fast?.modelID : currentConfigured.agent?.modelID;
         let matched = false;
         for (const opt of selectEl.options) {
@@ -2611,7 +3377,6 @@
     filterFreeBtn.addEventListener("click", () => renderDropdowns("free"));
     filterPaidBtn.addEventListener("click", () => renderDropdowns("paid"));
 
-    // Agent Weight Slider
     function updateAgentWeightLabel(val) {
       if (val < 0.35) {
         agentWeightVal.textContent = `${val.toFixed(2)} (Fast Conversational Bias)`;
@@ -2627,20 +3392,15 @@
       updateAgentWeightLabel(val);
     });
 
-    modelConfigBtn.addEventListener("click", async () => {
+    async function loadModelCatalog() {
       try {
-        if (modelModalError) modelModalError.style.display = "none";
         const res = await fetch("/api/models");
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${res.status}: Failed to reach OpenCode daemon`);
-        }
+        if (!res.ok) return;
         const data = await res.json();
         cachedCatalog = data.catalog || [];
         cachedAgents = data.agents || [];
         currentConfigured = data.configured || {};
 
-        // Counts
         const freeCount = cachedCatalog.filter(m => isFreeModel(m)).length;
         const paidCount = cachedCatalog.filter(m => !isFreeModel(m)).length;
         filterAllBtn.textContent = `All (${cachedCatalog.length})`;
@@ -2651,16 +3411,29 @@
         agentWeightSlider.value = aWeight;
         updateAgentWeightLabel(parseFloat(aWeight));
 
+        updateActiveModelCards(currentConfigured.fast, currentConfigured.agent, aWeight);
+      } catch (err) {
+        console.warn("Catalog load failed:", err);
+      }
+    }
+
+    modelConfigBtn.addEventListener("click", async () => {
+      try {
+        if (modelModalError) modelModalError.style.display = "none";
+        await loadModelCatalog();
         renderDropdowns("all");
         modelModal.style.display = "flex";
       } catch (err) {
-        console.error("Failed to load models:", err);
         if (modelModalError) {
           modelModalError.style.display = "block";
-          modelModalError.textContent = `Error loading model catalog: ${err.message}. Ensure OpenCode daemon is running.`;
+          modelModalError.textContent = `Error loading model catalog: ${err.message}`;
         }
         modelModal.style.display = "flex";
       }
+    });
+
+    document.getElementById("navModels").addEventListener("click", () => {
+      modelConfigBtn.click();
     });
 
     btnModelCancel.addEventListener("click", () => {
@@ -2696,10 +3469,46 @@
         };
         const agentWeight = parseFloat(agentWeightSlider.value);
 
+        if (!persist && currentSessionId && currentSessionId !== "default") {
+          // Switch active session model and agent directly
+          const modelRes = await fetch(`/api/session/${encodeURIComponent(currentSessionId)}/model`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              providerID: fast.providerID,
+              modelID: fast.modelID,
+              variant: fast.variant,
+            })
+          });
+          const modelData = await modelRes.json();
+          if (!modelRes.ok) throw new Error(modelData.error || "Failed to switch session model");
+
+          if (agent.agentID) {
+            await fetch(`/api/session/${encodeURIComponent(currentSessionId)}/agent`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ agentID: agent.agentID })
+            });
+          }
+
+          currentConfigured.fast = fast;
+          currentConfigured.agent = agent;
+          updateActiveModelCards(fast, agent, agentWeight);
+          modelModal.style.display = "none";
+          return;
+        }
+
+        // Save & Switch (Persisted + Session Switch)
         const resp = await fetch("/api/models", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fast, agent, agentWeight, persist })
+          body: JSON.stringify({ 
+            fast, 
+            agent, 
+            agentWeight, 
+            persist, 
+            sessionId: currentSessionId !== "default" ? currentSessionId : undefined 
+          })
         });
 
         const respData = await resp.json().catch(() => ({}));
@@ -2715,7 +3524,7 @@
         currentConfigured.agent = agent;
         currentConfigured.agentWeight = agentWeight;
 
-        modelConfigBtn.textContent = `⚙️ Models (${fast.modelID})`;
+        updateActiveModelCards(fast, agent, agentWeight);
         modelModal.style.display = "none";
       } catch (err) {
         if (modelModalError) {
@@ -2734,16 +3543,49 @@
       btnModelSwitchSession.addEventListener("click", () => performModelSwitch(false));
     }
 
-    // Load initial system status
-    fetch("/api/status")
-      .then(res => res.json())
-      .then(data => {
-        const opencodeStatus = document.getElementById("opencodeStatus");
-        if (opencodeStatus && data.opencode?.ok) {
-          opencodeStatus.innerHTML = `<span class="status-indicator"></span> Connected (v${data.opencode.version})`;
+    // Sessions Management
+    async function loadSessions() {
+      try {
+        const res = await fetch("/api/sessions");
+        if (!res.ok) return;
+        const data = await res.json();
+        const sessions = data.sessions || [];
+        if (sessions.length > 0) {
+          sessionList.innerHTML = "";
+          sessions.forEach((s, idx) => {
+            const li = document.createElement("li");
+            li.className = `session-item ${idx === 0 ? "active" : ""}`;
+            li.dataset.id = s.id;
+            li.textContent = s.title || `Session ${s.id.substring(0, 8)}`;
+            li.addEventListener("click", () => {
+              document.querySelectorAll(".session-item").forEach(el => el.classList.remove("active"));
+              li.classList.add("active");
+              currentSessionId = s.id;
+            });
+            sessionList.appendChild(li);
+          });
+          currentSessionId = sessions[0].id;
         }
-      })
-      .catch(() => {});
+      } catch (e) {}
+    }
+
+    newSessionBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category: "general" })
+        });
+        if (res.ok) {
+          await loadSessions();
+        }
+      } catch (e) {}
+    });
+
+    // Initial load
+    loadModelCatalog();
+    loadSessions();
+    fetch("/api/status").catch(() => {});
   </script>
 </body>
 </html>

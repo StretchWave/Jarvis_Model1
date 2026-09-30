@@ -40,6 +40,7 @@ export interface JarvisConfig {
     spawnIfDown: boolean;
     connectTimeoutMs: number;
     disableGlobalDiscovery?: boolean;
+    legacyProtocolMode?: boolean;
   };
   models: JarvisModelsConfig;
   fallbackProvider?: FallbackProviderConfig;
@@ -130,6 +131,7 @@ export function getDefaultConfig(): JarvisConfig {
       cliPath: detectedCli,
       spawnIfDown: true,
       connectTimeoutMs: 5000,
+      legacyProtocolMode: process.env.OPENCODE_LEGACY_PROTOCOL_MODE === "true",
     },
     models: {
       fast: {
@@ -199,7 +201,13 @@ export function loadConfig(configPath?: string): JarvisConfig {
       const loaded: JarvisConfig = {
         ...defaults,
         ...userCfg,
-        opencode: { ...defaults.opencode, ...(userCfg.opencode || {}) },
+        opencode: {
+          ...defaults.opencode,
+          ...(userCfg.opencode || {}),
+          legacyProtocolMode: userCfg.opencode?.legacyProtocolMode !== undefined
+            ? Boolean(userCfg.opencode.legacyProtocolMode)
+            : (process.env.OPENCODE_LEGACY_PROTOCOL_MODE === "true"),
+        },
         models: {
           fast: { ...defaults.models.fast, ...(userCfg.models?.fast || {}) },
           agent: { ...defaults.models.agent, ...(userCfg.models?.agent || {}) },
@@ -246,11 +254,22 @@ export function saveConfig(config: JarvisConfig, configPath?: string): void {
   let existing: Record<string, any> = {};
 
   if (fs.existsSync(targetPath)) {
-    try {
-      const raw = fs.readFileSync(targetPath, "utf-8");
-      existing = JSON.parse(raw);
-    } catch {
-      existing = {};
+    const raw = fs.readFileSync(targetPath, "utf-8").trim();
+    if (raw.length > 0) {
+      try {
+        existing = JSON.parse(raw);
+        if (typeof existing !== "object" || existing === null || Array.isArray(existing)) {
+          throw new Error("Configuration root must be a JSON object");
+        }
+      } catch (parseErr: any) {
+        const corruptBackupPath = `${targetPath}.corrupt.bak.${Date.now()}`;
+        try {
+          fs.writeFileSync(corruptBackupPath, raw, "utf-8");
+        } catch {}
+        throw new Error(
+          `Refusing to overwrite malformed configuration file at ${targetPath}: ${parseErr.message}. A recovery backup was saved to ${corruptBackupPath}`
+        );
+      }
     }
   }
 
