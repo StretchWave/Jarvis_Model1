@@ -9,6 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { spawn } from "node:child_process";
 import { Logger } from "./logger.ts";
 
 export interface ServiceInfo {
@@ -161,30 +162,99 @@ export class OpenCodeClient {
 
   /**
    * List available models configured in OpenCode.
+  /**
+   * Search known local paths for the OpenCode CLI executable.
    */
-  public async listModels(): Promise<OpenCodeModelInfo[]> {
+  public findCliExecutable(): string | null {
+    if (process.env.OPENCODE_CLI_PATH && fs.existsSync(process.env.OPENCODE_CLI_PATH)) {
+      return process.env.OPENCODE_CLI_PATH;
+    }
+    const appData = process.env.APPDATA;
+    if (appData) {
+      const cliBase = path.join(appData, "ai.opencode.desktop", "cli");
+      if (fs.existsSync(cliBase)) {
+        try {
+          const versions = fs.readdirSync(cliBase).sort().reverse();
+          for (const ver of versions) {
+            const candidate = path.join(cliBase, ver, "opencode-cli.exe");
+            if (fs.existsSync(candidate)) return candidate;
+          }
+        } catch {}
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Automatically verify OpenCode daemon is running; auto-starts it if the binary exists.
+   */
+  public async ensureDaemonRunning(): Promise<boolean> {
+    const current = await this.health();
+    if (current.ok) return true;
+
+    const cliPath = this.findCliExecutable();
+    if (!cliPath) {
+      return false;
+    }
+
+    this.logger.info(`OpenCode daemon not running. Launching background service via ${cliPath}...`);
+    try {
+      const child = spawn(cliPath, ["serve", "--service"], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      child.unref();
+
+      // Wait up to 5 seconds for service.json to be created and health check to pass
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 350));
+        this.discoverService();
+        const h = await this.health();
+        if (h.ok) {
+          this.logger.info(`OpenCode daemon ready at ${h.url} (PID: ${h.pid})`);
+          return true;
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not auto-start OpenCode daemon: ${err.message}`);
+    }
+
+    return false;
+  }
+
+  /**
+   * List available models configured in OpenCode.
+   */
+  public async listModels(retries = 2): Promise<OpenCodeModelInfo[]> {
     if (!this.serviceInfo) this.discoverService();
     if (!this.serviceInfo) throw new Error("OpenCode service not available");
 
-    const resp = await fetch(`${this.serviceInfo.url}/api/model`, {
-      method: "GET",
-      headers: this.getAuthHeaders(),
-    });
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const resp = await fetch(`${this.serviceInfo.url}/api/model`, {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      });
 
-    if (!resp.ok) {
-      throw new Error(`Failed to list OpenCode models: HTTP ${resp.status}`);
+      if (!resp.ok) {
+        throw new Error(`Failed to list OpenCode models: HTTP ${resp.status}`);
+      }
+
+      const json = (await resp.json()) as any;
+      const items = Array.isArray(json) ? json : (json.data || []);
+      if (items.length > 0 || attempt === retries) {
+        return items.map((m: any) => ({
+          id: m.id || m.modelID,
+          modelID: m.modelID || m.id,
+          providerID: m.providerID,
+          name: m.name || m.id,
+          family: m.family,
+          capabilities: m.capabilities,
+        }));
+      }
+      await new Promise(r => setTimeout(r, 600));
     }
-
-    const json = (await resp.json()) as any;
-    const items = Array.isArray(json) ? json : (json.data || []);
-    return items.map((m: any) => ({
-      id: m.id || m.modelID,
-      modelID: m.modelID || m.id,
-      providerID: m.providerID,
-      name: m.name || m.id,
-      family: m.family,
-      capabilities: m.capabilities,
-    }));
+    return [];
   }
 
   /**

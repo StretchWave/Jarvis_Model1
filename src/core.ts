@@ -95,6 +95,7 @@ export class JarvisCore {
 
   public async initialize(): Promise<void> {
     this.logger.info(`Initializing JARVIS Core v${this.config.version}...`);
+    await this.opencode.ensureDaemonRunning();
     const ocHealth = await this.opencode.health();
     if (ocHealth.ok) {
       this.logger.info(`Connected to OpenCode daemon at ${ocHealth.url} (version: ${ocHealth.version}, pid: ${ocHealth.pid})`);
