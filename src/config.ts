@@ -236,3 +236,45 @@ export function loadConfig(configPath?: string): JarvisConfig {
 
   return defaults;
 }
+
+/**
+ * Persist configuration changes to disk with atomic write semantics.
+ * Preserves unrelated configuration entries and avoids exposing secrets.
+ */
+export function saveConfig(config: JarvisConfig, configPath?: string): void {
+  const targetPath = configPath || path.join(process.cwd(), "jarvis.config.json");
+  let existing: Record<string, any> = {};
+
+  if (fs.existsSync(targetPath)) {
+    try {
+      const raw = fs.readFileSync(targetPath, "utf-8");
+      existing = JSON.parse(raw);
+    } catch {
+      existing = {};
+    }
+  }
+
+  const updated: Record<string, any> = {
+    ...existing,
+    models: {
+      ...(existing.models || {}),
+      fast: {
+        providerID: config.models.fast.providerID,
+        modelID: config.models.fast.modelID,
+        variant: config.models.fast.variant || "default",
+      },
+      agent: {
+        providerID: config.models.agent.providerID,
+        modelID: config.models.agent.modelID,
+        variant: config.models.agent.variant || "default",
+        agentID: config.models.agent.agentID || "build",
+      },
+      ...(config.models.agentWeight !== undefined ? { agentWeight: config.models.agentWeight } : {}),
+    },
+  };
+
+  // Atomic write semantics: write to unique temporary file, then renameSync
+  const tmpPath = `${targetPath}.tmp.${Date.now()}.${Math.random().toString(36).substring(2, 7)}`;
+  fs.writeFileSync(tmpPath, JSON.stringify(updated, null, 2), "utf-8");
+  fs.renameSync(tmpPath, targetPath);
+}

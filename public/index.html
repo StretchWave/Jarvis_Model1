@@ -1176,19 +1176,13 @@
       <div class="weight-section">
         <div class="weight-title">⚖️ Model & Routing Semantics</div>
 
-        <!-- Creativity / Temperature Weight -->
-        <div class="weight-slider-group">
+        <!-- Model Governance Notice (Requirement 7) -->
+        <div class="weight-slider-group" style="background: rgba(0, 240, 255, 0.04); border: 1px dashed rgba(0, 240, 255, 0.2); padding: 12px; border-radius: 8px;">
           <div class="weight-label-row">
-            <span class="weight-name">Creativity Weight (Generation Temperature):</span>
-            <span class="weight-val-badge" id="creativityWeightVal">0.70</span>
+            <span class="weight-name" style="color: var(--accent-cyan);">💡 OpenCode Model Governance:</span>
           </div>
-          <input type="range" class="weight-slider" id="creativityWeightSlider" min="0" max="1" step="0.05" value="0.7">
-          <div class="weight-sub-row">
-            <span>0.0 (Deterministic / Exact)</span>
-            <span>1.0 (Creative / Exploratory)</span>
-          </div>
-          <div class="weight-desc" style="margin-top: 4px;">
-            Controls model generation sampling temperature passed to OpenCode model providers. Lower values ensure reproducible code and exact answers; higher values allow broader linguistic exploration.
+          <div class="weight-desc" style="margin-top: 4px; color: var(--text-secondary); font-size: 12px; line-height: 1.4;">
+            Model creativity, reasoning budgets, and sampling behavior are governed through official OpenCode model variants selected above or internal OpenCode provider settings. Generic arbitrary temperature injection is not used.
           </div>
         </div>
 
@@ -1214,7 +1208,8 @@
 
       <div class="modal-buttons">
         <button class="btn btn-cancel" id="btnModelCancel">Cancel</button>
-        <button class="btn btn-approve" id="btnModelSave">Save & Switch</button>
+        <button class="btn btn-cancel" id="btnModelSwitchSession" style="border-color: var(--accent-cyan); color: var(--accent-cyan);" title="Apply to active OpenCode session only">Switch (Session Only)</button>
+        <button class="btn btn-approve" id="btnModelSave" title="Update persisted config and switch active OpenCode session">Save & Switch</button>
       </div>
     </div>
   </div>
@@ -2453,8 +2448,7 @@
     const fastModelBadge = document.getElementById("fastModelBadge");
     const agentModelBadge = document.getElementById("agentModelBadge");
     const modelModalError = document.getElementById("modelModalError");
-    const creativityWeightSlider = document.getElementById("creativityWeightSlider");
-    const creativityWeightVal = document.getElementById("creativityWeightVal");
+    const btnModelSwitchSession = document.getElementById("btnModelSwitchSession");
     const agentWeightSlider = document.getElementById("agentWeightSlider");
     const agentWeightVal = document.getElementById("agentWeightVal");
 
@@ -2490,9 +2484,10 @@
 
         for (const v of variants) {
           const opt = document.createElement("option");
-          opt.value = v;
-          opt.textContent = v;
-          if (v === currentVariant) opt.selected = true;
+          const vId = (typeof v === "string") ? v : (v && v.id ? v.id : "default");
+          opt.value = vId;
+          opt.textContent = vId;
+          if (vId === currentVariant) opt.selected = true;
           variantSelectEl.appendChild(opt);
         }
       } catch {
@@ -2616,12 +2611,6 @@
     filterFreeBtn.addEventListener("click", () => renderDropdowns("free"));
     filterPaidBtn.addEventListener("click", () => renderDropdowns("paid"));
 
-    // Creativity Weight Slider
-    creativityWeightSlider.addEventListener("input", (e) => {
-      const val = parseFloat(e.target.value);
-      creativityWeightVal.textContent = val.toFixed(2);
-    });
-
     // Agent Weight Slider
     function updateAgentWeightLabel(val) {
       if (val < 0.35) {
@@ -2642,6 +2631,10 @@
       try {
         if (modelModalError) modelModalError.style.display = "none";
         const res = await fetch("/api/models");
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}: Failed to reach OpenCode daemon`);
+        }
         const data = await res.json();
         cachedCatalog = data.catalog || [];
         cachedAgents = data.agents || [];
@@ -2654,11 +2647,6 @@
         filterFreeBtn.textContent = `🆓 Free Tier (${freeCount})`;
         filterPaidBtn.textContent = `💳 Paid Models (${paidCount})`;
 
-        // Weights
-        const cWeight = currentConfigured.creativityWeight !== undefined ? currentConfigured.creativityWeight : 0.70;
-        creativityWeightSlider.value = cWeight;
-        creativityWeightVal.textContent = parseFloat(cWeight).toFixed(2);
-
         const aWeight = currentConfigured.agentWeight !== undefined ? currentConfigured.agentWeight : 0.50;
         agentWeightSlider.value = aWeight;
         updateAgentWeightLabel(parseFloat(aWeight));
@@ -2667,6 +2655,11 @@
         modelModal.style.display = "flex";
       } catch (err) {
         console.error("Failed to load models:", err);
+        if (modelModalError) {
+          modelModalError.style.display = "block";
+          modelModalError.textContent = `Error loading model catalog: ${err.message}. Ensure OpenCode daemon is running.`;
+        }
+        modelModal.style.display = "flex";
       }
     });
 
@@ -2675,12 +2668,19 @@
       if (modelModalError) modelModalError.style.display = "none";
     });
 
-    btnModelSave.addEventListener("click", async () => {
+    async function performModelSwitch(persist) {
       if (modelModalError) modelModalError.style.display = "none";
-      btnModelSave.textContent = "Switching...";
+      const activeBtn = persist ? btnModelSave : btnModelSwitchSession;
+      const originalText = activeBtn ? activeBtn.textContent : "Switching...";
+      if (activeBtn) activeBtn.textContent = persist ? "Saving..." : "Switching...";
       btnModelSave.disabled = true;
+      if (btnModelSwitchSession) btnModelSwitchSession.disabled = true;
 
       try {
+        if (!fastModelSelect.value || !agentModelSelect.value) {
+          throw new Error("No model selected. Catalog may be empty or daemon unavailable.");
+        }
+
         const fastBase = JSON.parse(fastModelSelect.value);
         const agentBase = JSON.parse(agentModelSelect.value);
         const fast = {
@@ -2694,13 +2694,12 @@
           variant: agentVariantSelect.value || "default",
           agentID: agentAgentSelect.value || "build",
         };
-        const creativityWeight = parseFloat(creativityWeightSlider.value);
         const agentWeight = parseFloat(agentWeightSlider.value);
 
         const resp = await fetch("/api/models", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fast, agent, creativityWeight, agentWeight })
+          body: JSON.stringify({ fast, agent, agentWeight, persist })
         });
 
         const respData = await resp.json().catch(() => ({}));
@@ -2709,16 +2708,14 @@
             modelModalError.style.display = "block";
             modelModalError.textContent = `Switch Error: ${respData.error || "OpenCode rejected model configuration"}`;
           }
-          btnModelSave.textContent = "Save & Switch";
-          btnModelSave.disabled = false;
           return;
         }
 
         currentConfigured.fast = fast;
         currentConfigured.agent = agent;
-        currentConfigured.creativityWeight = creativityWeight;
         currentConfigured.agentWeight = agentWeight;
 
+        modelConfigBtn.textContent = `⚙️ Models (${fast.modelID})`;
         modelModal.style.display = "none";
       } catch (err) {
         if (modelModalError) {
@@ -2726,10 +2723,16 @@
           modelModalError.textContent = `Switch Error: ${err.message}`;
         }
       } finally {
-        btnModelSave.textContent = "Save & Switch";
+        if (activeBtn) activeBtn.textContent = originalText;
         btnModelSave.disabled = false;
+        if (btnModelSwitchSession) btnModelSwitchSession.disabled = false;
       }
-    });
+    }
+
+    btnModelSave.addEventListener("click", () => performModelSwitch(true));
+    if (btnModelSwitchSession) {
+      btnModelSwitchSession.addEventListener("click", () => performModelSwitch(false));
+    }
 
     // Load initial system status
     fetch("/api/status")

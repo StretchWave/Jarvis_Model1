@@ -12,7 +12,7 @@
 
 import { SessionManager } from "../session_manager.ts";
 import { MemoryManager } from "../memory/memory_manager.ts";
-import { OpenCodeClient, type OpenCodeModelRef } from "../opencode_client.ts";
+import { OpenCodeClient, type OpenCodeModelRef, validateModelProfileAgainstCatalog } from "../opencode_client.ts";
 import { formatContextPrompt } from "../personality.ts";
 import { Logger } from "../logger.ts";
 import { type OpenCodeModelProfile } from "../config.ts";
@@ -21,7 +21,7 @@ export type AgentEvent =
   | { type: "progress"; message: string }
   | { type: "tool_activity"; tool: string; status: "started" | "running" | "completed" }
   | { type: "token"; text: string }
-  | { type: "confirm_required"; action: string; details: string; requestId: string }
+  | { type: "confirm_required"; action: string; details: string; requestId: string; opencodeSessionId?: string; resources?: string[] }
   | { type: "done"; fullText: string }
   | { type: "error"; error: string };
 
@@ -43,7 +43,12 @@ export class AgentDispatcher {
     this.memoryMgr = memoryMgr;
     this.client = client;
     this.logger = logger.forComponent("AgentDispatcher");
-    this.agentModelProfile = agentModelProfile;
+    this.agentModelProfile = agentModelProfile || {
+      providerID: "opencode",
+      modelID: "mimo-v2.6-flash-free",
+      variant: "default",
+      agentID: "build",
+    };
   }
 
   public setAgentModelProfile(profile: OpenCodeModelProfile): void {
@@ -134,7 +139,16 @@ export class AgentDispatcher {
       return;
     }
 
-    // 2. Assemble compact context package
+    // 2. Strict runtime model validation against catalog
+    if (this.agentModelProfile) {
+      const valRes = await validateModelProfileAgainstCatalog(this.client, this.agentModelProfile, "AGENT");
+      if (!valRes.ok) {
+        yield { type: "error", error: valRes.error || "AGENT model validation failed" };
+        return;
+      }
+    }
+
+    // 3. Assemble compact context package
     const project = projectId ? this.memoryMgr.getProject(projectId) : null;
     const memories = this.memoryMgr.recall(userPrompt, projectId, 3).map((m) => ({
       category: m.category,
@@ -156,7 +170,7 @@ export class AgentDispatcher {
 
     yield { type: "progress", message: "Analyzing task requirements with OpenCode Agent..." };
 
-    // 3. Genuine real-time streaming via OpenCode executePromptStream
+    // 4. Genuine real-time streaming via OpenCode executePromptStream
     let accumulatedText = "";
     try {
       const modelRef: OpenCodeModelRef | undefined = this.agentModelProfile
@@ -181,6 +195,8 @@ export class AgentDispatcher {
             action: ev.action,
             details: ev.details || `Permission required for ${ev.action}`,
             requestId: ev.requestId,
+            opencodeSessionId: ocSessionId,
+            resources: ev.resources,
           };
         } else if (ev.type === "progress") {
           yield { type: "progress", message: ev.message };

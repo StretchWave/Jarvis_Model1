@@ -11,7 +11,7 @@
 
 import { getSystemPrompt } from "../personality.ts";
 import { Logger } from "../logger.ts";
-import { OpenCodeClient, type OpenCodeModelRef, type OpenCodeStreamEvent } from "../opencode_client.ts";
+import { OpenCodeClient, type OpenCodeModelRef, type OpenCodeStreamEvent, validateModelProfileAgainstCatalog } from "../opencode_client.ts";
 import { type OpenCodeModelProfile } from "../config.ts";
 import { type SessionManager } from "../session_manager.ts";
 
@@ -436,20 +436,14 @@ export class OpenCodeModelProvider implements ModelProvider {
       return;
     }
 
-    // Validate that the model exists in the OpenCode catalog
-    const catalog = await this.client.listModels().catch(() => []);
-    if (catalog.length > 0) {
-      const match = catalog.find(
-        m => m.providerID === this.modelProfile.providerID &&
-             (m.id === this.modelProfile.modelID || m.modelID === this.modelProfile.modelID)
-      );
-      if (!match) {
-        yield {
-          type: "error",
-          error: `Configured model "${this.modelProfile.providerID}/${this.modelProfile.modelID}" is not available in OpenCode catalog`,
-        };
-        return;
-      }
+    // Validate model, provider, and variant against catalog (Requirements 12 & 13)
+    const validation = await validateModelProfileAgainstCatalog(this.client, this.modelProfile, "FAST");
+    if (!validation.ok) {
+      yield {
+        type: "error",
+        error: validation.error || "FAST model validation failed",
+      };
+      return;
     }
 
     let ocSessionId: string;

@@ -12,7 +12,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { spawn } from "node:child_process";
 import { Logger } from "./logger.ts";
-import { compareSemver, findOpenCodeCli } from "./config.ts";
+import { compareSemver, findOpenCodeCli, type OpenCodeModelProfile } from "./config.ts";
 
 export interface ServiceInfo {
   url: string;
@@ -56,11 +56,82 @@ export interface OpenCodeModelInfo {
   };
 }
 
+/**
+ * Reusable helper to validate whether a model catalog entry supports a requested variant.
+ * Supports string-style variants ("high") and object-style variants ({ id: "high" }).
+ */
+export function modelSupportsVariant(model: any, variant?: string): boolean {
+  if (!variant || variant === "default") {
+    return true;
+  }
+  const variants = model?.variants;
+  if (!variants || !Array.isArray(variants) || variants.length === 0) {
+    return true;
+  }
+  for (const v of variants) {
+    if (typeof v === "string") {
+      if (v === variant) return true;
+    } else if (v && typeof v === "object" && typeof v.id === "string") {
+      if (v.id === variant) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Reusable helper to validate a configured model profile against the live OpenCode catalog.
+ * Validates catalog availability, model existence, and variant support.
+ */
+export async function validateModelProfileAgainstCatalog(
+  client: OpenCodeClient,
+  profile: OpenCodeModelProfile,
+  profileName: "FAST" | "AGENT"
+): Promise<{ ok: boolean; error?: string; model?: OpenCodeModelInfo }> {
+  let catalog: OpenCodeModelInfo[];
+  try {
+    catalog = await client.listModels();
+  } catch (err: any) {
+    return {
+      ok: false,
+      error: `Failed to load OpenCode model catalog for ${profileName} model validation: ${err.message}`,
+    };
+  }
+
+  if (catalog.length === 0) {
+    return {
+      ok: false,
+      error: `OpenCode model catalog is empty. Cannot execute ${profileName} request.`,
+    };
+  }
+
+  const match = catalog.find(
+    (m) =>
+      m.providerID === profile.providerID &&
+      (m.id === profile.modelID || m.modelID === profile.modelID)
+  );
+
+  if (!match) {
+    return {
+      ok: false,
+      error: `Configured ${profileName} model "${profile.providerID}/${profile.modelID}" is not available in OpenCode catalog (${catalog.length} models installed).`,
+    };
+  }
+
+  if (profile.variant && !modelSupportsVariant(match, profile.variant)) {
+    return {
+      ok: false,
+      error: `Variant "${profile.variant}" is not supported for ${profileName} model "${profile.providerID}/${profile.modelID}".`,
+    };
+  }
+
+  return { ok: true, model: match };
+}
+
 export interface OpenCodeAgentInfo {
   id: string;
   name: string;
   description?: string;
-  mode: "primary" | "subagent" | string;
+  mode: "primary" | "subagent" | "all" | string;
   hidden?: boolean;
   disabled?: boolean;
   tools?: string[];
@@ -72,18 +143,15 @@ export interface PromptSessionRequest {
   text: string;
   files?: any[];
   agents?: any[];
-  skills?: any[];
-  metadata?: Record<string, any>;
-  delivery?: any;
+  delivery?: "steer" | "queue";
   resume?: boolean;
 }
 
 export interface SendMessageOptions {
   model?: OpenCodeModelRef;
   agent?: string;
-  metadata?: Record<string, any>;
   files?: any[];
-  skills?: any[];
+  delivery?: "steer" | "queue";
   resume?: boolean;
 }
 
@@ -285,12 +353,29 @@ export class OpenCodeClient {
       if (info.password) {
         headers["Authorization"] = `Basic ${Buffer.from(`opencode:${info.password}`).toString("base64")}`;
       }
-      const resp = await fetch(`${info.url}/api/info`, {
+
+      // Try supported /api/health endpoint first (Requirement 8)
+      try {
+        const resp = await fetch(`${info.url}/api/health`, {
+          method: "GET",
+          headers,
+          signal: controller.signal,
+        });
+        if (resp.ok) return true;
+        // If 404 (endpoint not supported in this OpenCode version), fallback to /api/info
+        if (resp.status !== 404) return false;
+      } catch (err: any) {
+        if (controller.signal.aborted) return false;
+        return false;
+      }
+
+      // Fallback to /api/info
+      const infoResp = await fetch(`${info.url}/api/info`, {
         method: "GET",
         headers,
         signal: controller.signal,
       });
-      return resp.ok;
+      return infoResp.ok;
     } catch {
       return false;
     } finally {
@@ -472,24 +557,56 @@ export class OpenCodeClient {
       return { ok: false, error: "OpenCode service not found or dead. Is OpenCode running?" };
     }
 
+    // 1. Try supported /api/health endpoint first (Requirement 8)
+    let tryInfoFallback = false;
     try {
-      const info = await this.request<any>("/api/info", {
+      const healthData = await this.request<any>("/api/health", {
         method: "GET",
         timeoutMs: this.connectTimeoutMs,
       });
       return {
         ok: true,
         url: this.serviceInfo.url,
-        version: info?.version || this.serviceInfo.version,
-        pid: info?.pid || this.serviceInfo.pid,
+        version: healthData?.version || this.serviceInfo.version,
+        pid: healthData?.pid || this.serviceInfo.pid,
       };
     } catch (err: any) {
-      this.serviceInfo = null;
-      return {
-        ok: false,
-        error: `Could not connect to OpenCode daemon: ${err.message}`,
-      };
+      if (err.status === 404) {
+        // Endpoint unavailable in this OpenCode build, fallback to /api/info
+        tryInfoFallback = true;
+      } else {
+        // Server unhealthy or network error
+        this.serviceInfo = null;
+        return {
+          ok: false,
+          error: `Could not connect to OpenCode daemon: ${err.message}`,
+        };
+      }
     }
+
+    // 2. Fallback to /api/info
+    if (tryInfoFallback) {
+      try {
+        const info = await this.request<any>("/api/info", {
+          method: "GET",
+          timeoutMs: this.connectTimeoutMs,
+        });
+        return {
+          ok: true,
+          url: this.serviceInfo.url,
+          version: info?.version || this.serviceInfo.version,
+          pid: info?.pid || this.serviceInfo.pid,
+        };
+      } catch (err: any) {
+        this.serviceInfo = null;
+        return {
+          ok: false,
+          error: `Could not connect to OpenCode daemon: ${err.message}`,
+        };
+      }
+    }
+
+    return { ok: false, error: "Health check failed" };
   }
 
   /**
@@ -549,7 +666,7 @@ export class OpenCodeClient {
     }));
 
     if (options.primaryOnly) {
-      agents = agents.filter((a) => a.mode === "primary" && !a.hidden && !a.disabled);
+      agents = agents.filter((a) => (a.mode === "primary" || a.mode === "all") && !a.hidden && !a.disabled);
     }
     return agents;
   }
@@ -609,6 +726,7 @@ export class OpenCodeClient {
    * Expects HTTP 204. Throws typed OpenCodeError on failure.
    */
   public async switchSessionModel(sessionId: string, model: OpenCodeModelRef): Promise<void> {
+    const targetVariant = model.variant || "default";
     try {
       await this.request(`/api/session/${sessionId}/model`, {
         method: "POST",
@@ -616,24 +734,51 @@ export class OpenCodeClient {
           model: {
             providerID: model.providerID,
             id: model.id,
-            variant: model.variant || "default",
+            variant: targetVariant,
           },
         },
         timeoutMs: this.connectTimeoutMs,
       });
     } catch (err: any) {
       throw new OpenCodeError(
-        `Failed to switch session ${sessionId} to model ${model.providerID}/${model.id} (variant: ${model.variant || "default"}): ${err.message}`,
+        `Failed to switch session ${sessionId} to model ${model.providerID}/${model.id} (variant: ${targetVariant}): ${err.message}`,
         err.status || 500,
         "ModelSwitchError",
-        { providerID: model.providerID, modelID: model.id, variant: model.variant, status: err.status, message: err.message }
+        { providerID: model.providerID, modelID: model.id, variant: targetVariant, status: err.status, message: err.message }
+      );
+    }
+
+    // Verify session state actually updated on OpenCode (Requirement 14)
+    try {
+      const sessionData = await this.getSession(sessionId);
+      const actual = sessionData?.model || sessionData?.data?.model;
+      if (actual) {
+        const actualProvider = actual.providerID;
+        const actualId = actual.id || actual.modelID;
+        if (actualProvider !== model.providerID || actualId !== model.id) {
+          throw new OpenCodeError(
+            `Model switch verification failed for session ${sessionId}: expected ${model.providerID}/${model.id}, but session reported ${actualProvider}/${actualId}`,
+            500,
+            "ModelSwitchVerificationError",
+            { expected: model, actual }
+          );
+        }
+      }
+    } catch (verifyErr: any) {
+      if (verifyErr instanceof OpenCodeError && verifyErr.code === "ModelSwitchVerificationError") {
+        throw verifyErr;
+      }
+      throw new OpenCodeError(
+        `Failed to verify model switch on session ${sessionId}: ${verifyErr.message}`,
+        verifyErr.status || 500,
+        "ModelSwitchVerificationError"
       );
     }
   }
 
   /**
    * Switch the active agent used by an existing OpenCode session.
-   * Expects HTTP 204. Throws typed OpenCodeError on failure.
+   * Expects HTTP 204 and verifies resulting session state.
    */
   public async switchSessionAgent(sessionId: string, agent: string): Promise<void> {
     try {
@@ -648,6 +793,29 @@ export class OpenCodeClient {
         err.status || 500,
         "AgentSwitchError",
         { agent, status: err.status, message: err.message }
+      );
+    }
+
+    // Verify session state actually updated on OpenCode (Requirement 14)
+    try {
+      const sessionData = await this.getSession(sessionId);
+      const actualAgent = sessionData?.agent || sessionData?.data?.agent;
+      if (actualAgent && actualAgent !== agent) {
+        throw new OpenCodeError(
+          `Agent switch verification failed for session ${sessionId}: expected '${agent}', but session reported '${actualAgent}'`,
+          500,
+          "AgentSwitchVerificationError",
+          { expected: agent, actual: actualAgent }
+        );
+      }
+    } catch (verifyErr: any) {
+      if (verifyErr instanceof OpenCodeError && verifyErr.code === "AgentSwitchVerificationError") {
+        throw verifyErr;
+      }
+      throw new OpenCodeError(
+        `Failed to verify agent switch on session ${sessionId}: ${verifyErr.message}`,
+        verifyErr.status || 500,
+        "AgentSwitchVerificationError"
       );
     }
   }
@@ -688,34 +856,46 @@ export class OpenCodeClient {
   }
 
   /**
-   * Canonical prompt method conforming to OpenCode v2 protocol.
-   * Request body includes { prompt: { text, ... }, text: ... } to satisfy all validators.
+   * Canonical prompt method conforming strictly to OpenCode v2 protocol.
+   * Sends only documented fields: { prompt: { text, files, agents }, delivery, resume }.
    */
   public async promptSession(sessionId: string, req: PromptSessionRequest, options: RequestOptions = {}): Promise<any> {
-    const payload: Record<string, any> = {
-      prompt: {
-        text: req.text,
-        ...(req.files ? { files: req.files } : {}),
-        ...(req.agents ? { agents: req.agents } : {}),
-        ...(req.skills ? { skills: req.skills } : {}),
-        ...(req.delivery ? { delivery: req.delivery } : {}),
-        ...(req.resume !== undefined ? { resume: req.resume } : {}),
-      },
+    const promptObj: Record<string, any> = {
       text: req.text,
     };
-    if (req.files) payload.files = req.files;
-    if (req.agents) payload.agents = req.agents;
-    if (req.skills) payload.skills = req.skills;
-    if (req.metadata) payload.metadata = req.metadata;
+    if (req.files && req.files.length > 0) promptObj.files = req.files;
+    if (req.agents && req.agents.length > 0) promptObj.agents = req.agents;
+
+    const payload: Record<string, any> = {
+      prompt: promptObj,
+    };
     if (req.delivery) payload.delivery = req.delivery;
     if (req.resume !== undefined) payload.resume = req.resume;
 
-    return this.request(`/api/session/${sessionId}/prompt`, {
-      method: "POST",
-      body: payload,
-      timeoutMs: options.timeoutMs ?? this.connectTimeoutMs,
-      signal: options.signal,
-    });
+    try {
+      return await this.request(`/api/session/${sessionId}/prompt`, {
+        method: "POST",
+        body: payload,
+        timeoutMs: options.timeoutMs ?? this.connectTimeoutMs,
+        signal: options.signal,
+      });
+    } catch (err: any) {
+      if (err.status === 400 && typeof err.message === "string" && err.message.includes('Missing key\n  at ["text"]')) {
+        const legacyPayload: Record<string, any> = {
+          text: req.text,
+          delivery: req.delivery || "steer",
+        };
+        if (req.files && req.files.length > 0) legacyPayload.files = req.files;
+        if (req.resume !== undefined) legacyPayload.resume = req.resume;
+        return await this.request(`/api/session/${sessionId}/prompt`, {
+          method: "POST",
+          body: legacyPayload,
+          timeoutMs: options.timeoutMs ?? this.connectTimeoutMs,
+          signal: options.signal,
+        });
+      }
+      throw err;
+    }
   }
 
   public async sendPrompt(sessionId: string, prompt: string, options?: RequestOptions): Promise<any> {
@@ -734,9 +914,7 @@ export class OpenCodeClient {
       {
         text: prompt,
         files: options?.files,
-        agents: options?.agent ? [{ id: options.agent }] : undefined,
-        skills: options?.skills,
-        metadata: options?.metadata,
+        delivery: options?.delivery,
         resume: options?.resume,
       },
       options
@@ -795,7 +973,8 @@ export class OpenCodeClient {
 
   /**
    * Reply to a pending permission request in an OpenCode session.
-   * Conforms to OpenCode v2 permission protocol: { reply, decision }.
+   * Conforms strictly to OpenCode v2 permission protocol: { reply, message }.
+   * No 'decision' field is transmitted.
    */
   public async replyPermission(
     sessionId: string,
@@ -805,7 +984,6 @@ export class OpenCodeClient {
   ): Promise<void> {
     const body: Record<string, any> = {
       reply,
-      decision: reply,
     };
     if (message) body.message = message;
 
@@ -851,6 +1029,10 @@ export class OpenCodeClient {
       }
     }
 
+    const connectTimer = setTimeout(() => {
+      internalController.abort(new OpenCodeError(`SSE connection establishment timed out after ${this.connectTimeoutMs}ms`, 408, "TimeoutError"));
+    }, this.connectTimeoutMs);
+
     let resp: Response;
     try {
       resp = await fetch(`${this.serviceInfo.url}/api/event`, {
@@ -859,8 +1041,11 @@ export class OpenCodeClient {
         signal: internalController.signal,
       });
     } catch (err: any) {
+      clearTimeout(connectTimer);
       if (externalSignal) externalSignal.removeEventListener("abort", onExternalAbort);
       throw err;
+    } finally {
+      clearTimeout(connectTimer);
     }
 
     if (!resp.ok || !resp.body) {
@@ -1048,6 +1233,14 @@ export class OpenCodeClient {
           const reqId = d.data?.id || d.data?.requestID || d.id;
           const act = d.data?.action || d.data?.tool || "Tool execution";
           if (reqId) {
+            pushEvent({
+              type: "permission_request",
+              requestId: reqId,
+              sessionId,
+              action: act,
+              details: d.data?.details || d.data?.reason,
+              resources: d.data?.resources,
+            });
             if (options?.onPermissionRequest) {
               options.onPermissionRequest({
                 opencodeSessionId: sessionId,
@@ -1061,16 +1254,6 @@ export class OpenCodeClient {
                 });
               }).catch(() => {
                 this.replyPermission(sessionId, reqId, "reject").catch(() => {});
-              });
-            } else {
-              // Emit event to stream consumer for confirmation
-              pushEvent({
-                type: "permission_request",
-                requestId: reqId,
-                sessionId,
-                action: act,
-                details: d.data?.details || d.data?.reason,
-                resources: d.data?.resources,
               });
             }
           }

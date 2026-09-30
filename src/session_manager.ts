@@ -114,7 +114,8 @@ export class SessionManager {
       try {
         // Verify it still exists in OpenCode
         const existing = await this.opencode.getSession(session.opencode_session_id);
-        if (existing && existing.id) {
+        const existingId = existing?.id || existing?.data?.id;
+        if (existingId) {
           return session.opencode_session_id;
         }
       } catch (err) {

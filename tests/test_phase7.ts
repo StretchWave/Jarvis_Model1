@@ -79,7 +79,7 @@ async function runPhase7() {
 
   // 3. Dispatch Agent Task
   console.log("\n▶ Step 3: Execute Agent Task with Context Injection");
-  const dispatcher = new AgentDispatcher(sessionMgr, memoryMgr, client, logger);
+  const dispatcher = new AgentDispatcher(sessionMgr, memoryMgr, client, logger, cfg.models.agent);
 
   const events: AgentEvent[] = [];
   let finalResult = "";

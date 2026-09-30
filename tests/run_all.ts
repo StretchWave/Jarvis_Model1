@@ -58,6 +58,7 @@ const mockIntegrationSuites: SuiteInfo[] = [
   { file: "tests/test_opencode_models_agents.ts", name: "OpenCode Model & Agent Discovery & Switching" },
   { file: "tests/test_opencode_permissions.ts", name: "OpenCode Permission Confirmation Protocol" },
   { file: "tests/test_opencode_cancellation.ts", name: "OpenCode SSE Lifecycle & Cancellation" },
+  { file: "tests/test_opencode_resilience.ts", name: "OpenCode Persistence, Health Fallback & Timeout Resilience" },
   { file: "tests/test_final_acceptance.ts", name: "Final Mock Acceptance Verification" },
 ];
 

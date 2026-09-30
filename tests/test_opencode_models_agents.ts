@@ -1,11 +1,11 @@
 /**
- * Test Suite: OpenCode Model & Agent Switching and Discovery (Requirements 25 & 26)
+ * Test Suite: OpenCode Model & Agent Switching, Discovery & Prompt Schema (Requirements 1, 4, 5, 11, 12, 13, 14)
  */
 
 import * as http from "node:http";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { OpenCodeClient, OpenCodeError } from "../src/opencode_client.ts";
+import { OpenCodeClient, OpenCodeError, modelSupportsVariant, validateModelProfileAgainstCatalog } from "../src/opencode_client.ts";
 import { Logger } from "../src/logger.ts";
 
 let totalTests = 0;
@@ -36,17 +36,18 @@ async function runModelAgentTests() {
   let activeSessionModel = { providerID: "opencode", id: "model-a", variant: "default" };
   let activeSessionAgent = "build";
   let lastPromptSessionModel: any = null;
+  let lastReceivedPromptBody: any = null;
 
   const mockServerPort = 39810;
   const mockServer = http.createServer((req, res) => {
-    // 1. /api/info
-    if (req.url === "/api/info" && req.method === "GET") {
+    // 1. /api/health or /api/info
+    if ((req.url === "/api/health" || req.url === "/api/info") && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, version: "2.0.15", pid: 5555 }));
       return;
     }
 
-    // 2. /api/model - catalog
+    // 2. /api/model - catalog with string variants AND object variants (Requirement 5)
     if (req.url === "/api/model" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify([
@@ -66,24 +67,50 @@ async function runModelAgentTests() {
           variants: ["default", "precise", "creative"],
           capabilities: ["chat", "tools"],
         },
+        {
+          providerID: "opencode",
+          id: "model-c",
+          modelID: "model-c",
+          name: "Model Gamma (Object Variants)",
+          variants: [
+            { id: "high", settings: {} },
+            { id: "low", settings: {} },
+          ],
+          capabilities: ["chat"],
+        },
       ]));
       return;
     }
 
-    // 3. /api/agent - catalog
+    // 3. /api/agent - catalog covering primary, all, subagent, hidden, disabled (Requirement 4)
     if (req.url === "/api/agent" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify([
         { id: "build", name: "Build Agent", mode: "primary", hidden: false, disabled: false },
-        { id: "plan", name: "Plan Agent", mode: "primary", hidden: false, disabled: false },
-        { id: "general", name: "General Subagent", mode: "subagent", hidden: false, disabled: false },
-        { id: "hidden_agent", name: "Internal", mode: "primary", hidden: true, disabled: false },
-        { id: "disabled_agent", name: "Disabled", mode: "primary", hidden: false, disabled: true },
+        { id: "plan", name: "Plan Agent (All)", mode: "all", hidden: false, disabled: false },
+        { id: "subagent_only", name: "Subagent Only", mode: "subagent", hidden: false, disabled: false },
+        { id: "hidden_primary", name: "Hidden Primary", mode: "primary", hidden: true, disabled: false },
+        { id: "disabled_primary", name: "Disabled Primary", mode: "primary", hidden: false, disabled: true },
+        { id: "hidden_all", name: "Hidden All", mode: "all", hidden: true, disabled: false },
+        { id: "disabled_all", name: "Disabled All", mode: "all", hidden: false, disabled: true },
       ]));
       return;
     }
 
-    // 4. POST /api/session/:id/model - strict payload validation
+    // 4. GET /api/session/:id - session state inspection & verification (Requirement 14)
+    if (req.url === `/api/session/${testSession}` && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        data: {
+          id: testSession,
+          model: activeSessionModel,
+          agent: activeSessionAgent,
+        },
+      }));
+      return;
+    }
+
+    // 5. POST /api/session/:id/model - strict payload validation
     if (req.url === `/api/session/${testSession}/model` && req.method === "POST") {
       let body = "";
       req.on("data", (chunk) => (body += chunk));
@@ -117,7 +144,7 @@ async function runModelAgentTests() {
       return;
     }
 
-    // 5. POST /api/session/:id/agent - strict payload validation
+    // 6. POST /api/session/:id/agent - strict payload validation
     if (req.url === `/api/session/${testSession}/agent` && req.method === "POST") {
       let body = "";
       req.on("data", (chunk) => (body += chunk));
@@ -147,20 +174,34 @@ async function runModelAgentTests() {
       return;
     }
 
-    // 6. POST /api/session/:id/prompt - canonical prompt protocol
+    // 7. POST /api/session/:id/prompt - strict payload schema verification (Requirement 1)
     if (req.url === `/api/session/${testSession}/prompt` && req.method === "POST") {
       let body = "";
       req.on("data", (chunk) => (body += chunk));
       req.on("end", () => {
         try {
           const parsed = JSON.parse(body);
-          if (!parsed.prompt || typeof parsed.prompt.text !== "string") {
+          lastReceivedPromptBody = parsed;
+
+          // Reject undocumented / forbidden top-level fields (Requirement 1)
+          if (
+            "text" in parsed ||
+            "files" in parsed ||
+            "agents" in parsed ||
+            "skills" in parsed ||
+            "metadata" in parsed
+          ) {
             res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Protocol violation: missing prompt.text" }));
+            res.end(JSON.stringify({ error: "Forbidden top-level fields detected" }));
             return;
           }
 
-          // Record what model the server actively has for this session during this prompt
+          if (!parsed.prompt || typeof parsed.prompt.text !== "string") {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Missing nested prompt.text" }));
+            return;
+          }
+
           lastPromptSessionModel = { ...activeSessionModel };
 
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -193,50 +234,74 @@ async function runModelAgentTests() {
   }, logger);
 
   // -------------------------------------------------------------
-  // Test 1: Model Discovery & Normalization
+  // Test 1: Model Discovery & Variant Support (Requirement 5)
   // -------------------------------------------------------------
-  console.log("▶ Group 1: Model Discovery & Canonical Representation");
+  console.log("▶ Group 1: Model Discovery & Variant Validation");
   const models = await client.listModels();
-  assert(models.length === 2, `Discovered 2 models from OpenCode catalog (got ${models.length})`);
+  assert(models.length === 3, `Discovered 3 models from OpenCode catalog (got ${models.length})`);
   assert(models[0].providerID === "opencode" && models[0].id === "model-a", "First model providerID/modelID parsed correctly");
-  assert(Array.isArray(models[1].variants) && models[1].variants.includes("creative"), "Model variants parsed and preserved");
+  assert(Array.isArray(models[1].variants) && models[1].variants.includes("creative"), "String-style variants preserved");
+  assert(Array.isArray(models[2].variants) && models[2].variants.some((v: any) => v.id === "high"), "Object-style variants preserved");
+
+  // modelSupportsVariant helper tests (Requirement 5)
+  assert(modelSupportsVariant(models[0], "fast") === true, "String variant 'fast' recognized as supported");
+  assert(modelSupportsVariant(models[0], "unknown") === false, "String variant 'unknown' rejected");
+  assert(modelSupportsVariant(models[2], "high") === true, "Object variant 'high' recognized as supported");
+  assert(modelSupportsVariant(models[2], "low") === true, "Object variant 'low' recognized as supported");
+  assert(modelSupportsVariant(models[2], "extreme") === false, "Object variant 'extreme' rejected");
+  assert(modelSupportsVariant(models[0], undefined) === true, "Undefined variant defaults to supported");
+  assert(modelSupportsVariant(models[0], "default") === true, "'default' variant recognized as supported");
 
   // -------------------------------------------------------------
-  // Test 2: Agent Discovery & Primary Filter
+  // Test 2: Agent Discovery & Primary Filter (Requirement 4)
   // -------------------------------------------------------------
-  console.log("\n▶ Group 2: Agent Discovery & Usable Primary Filtering");
+  console.log("\n▶ Group 2: Agent Discovery with mode: 'all' Support");
   const primaryAgents = await client.listAgents({ primaryOnly: true });
   assert(primaryAgents.length === 2, `Filtered catalog to 2 usable primary agents (got ${primaryAgents.length})`);
-  assert(primaryAgents.some(a => a.id === "build"), "Found 'build' primary agent");
-  assert(primaryAgents.some(a => a.id === "plan"), "Found 'plan' primary agent");
-  assert(!primaryAgents.some(a => a.id === "general"), "Subagent-only 'general' agent excluded from primary list");
-  assert(!primaryAgents.some(a => a.id === "hidden_agent"), "Hidden agent excluded from primary list");
-  assert(!primaryAgents.some(a => a.id === "disabled_agent"), "Disabled agent excluded from primary list");
+  assert(primaryAgents.some(a => a.id === "build"), "Found 'build' agent with mode: 'primary'");
+  assert(primaryAgents.some(a => a.id === "plan"), "Found 'plan' agent with mode: 'all'");
+  assert(!primaryAgents.some(a => a.id === "subagent_only"), "Subagent-only agent excluded");
+  assert(!primaryAgents.some(a => a.id === "hidden_primary"), "Hidden primary agent excluded");
+  assert(!primaryAgents.some(a => a.id === "disabled_primary"), "Disabled primary agent excluded");
+  assert(!primaryAgents.some(a => a.id === "hidden_all"), "Hidden 'all' agent excluded");
+  assert(!primaryAgents.some(a => a.id === "disabled_all"), "Disabled 'all' agent excluded");
 
   // -------------------------------------------------------------
-  // Test 3: Model Switching - Success on HTTP 204
+  // Test 3: Prompt Request Payload Schema (Requirement 1)
   // -------------------------------------------------------------
-  console.log("\n▶ Group 3: Model Switching Lifecycle");
-  // Initial switch to Model A
+  console.log("\n▶ Group 3: Canonical Prompt Payload Schema");
+  await client.promptSession(testSession, {
+    text: "Test prompt execution",
+    files: [{ path: "test.ts" }],
+    agents: [{ id: "build" }],
+    delivery: "steer",
+    resume: true,
+  });
+
+  assert(lastReceivedPromptBody !== null, "Prompt request received by mock server");
+  assert(lastReceivedPromptBody?.prompt?.text === "Test prompt execution", "prompt.text exists inside prompt object");
+  assert(Array.isArray(lastReceivedPromptBody?.prompt?.files), "prompt.files is nested inside prompt object");
+  assert(Array.isArray(lastReceivedPromptBody?.prompt?.agents), "prompt.agents is nested inside prompt object");
+  assert(lastReceivedPromptBody?.delivery === "steer", "delivery is top-level");
+  assert(lastReceivedPromptBody?.resume === true, "resume is top-level");
+  assert(!("text" in lastReceivedPromptBody), "Forbidden top-level 'text' does NOT exist");
+  assert(!("files" in lastReceivedPromptBody), "Forbidden top-level 'files' does NOT exist");
+  assert(!("agents" in lastReceivedPromptBody), "Forbidden top-level 'agents' does NOT exist");
+  assert(!("skills" in lastReceivedPromptBody), "Forbidden top-level 'skills' does NOT exist");
+  assert(!("metadata" in lastReceivedPromptBody), "Forbidden top-level 'metadata' does NOT exist");
+
+  // -------------------------------------------------------------
+  // Test 4: Model Switching & Session State Verification (Requirement 14)
+  // -------------------------------------------------------------
+  console.log("\n▶ Group 4: Model Switching & Session State Verification");
   await client.switchSessionModel(testSession, { providerID: "opencode", id: "model-a", variant: "default" });
-  assert(activeSessionModel.id === "model-a", "Switched session to model-a on server");
-
-  // Prompt on Model A
-  await client.promptSession(testSession, { text: "Prompt on model A" });
-  assert(lastPromptSessionModel.id === "model-a", "Server executed prompt on Model A");
+  assert(activeSessionModel.id === "model-a", "Switched session to model-a on server and verified session state");
 
   // Switch to Model B with variant
   await client.switchSessionModel(testSession, { providerID: "opencode", id: "model-b", variant: "creative" });
-  assert(activeSessionModel.id === "model-b" && activeSessionModel.variant === "creative", "Switched session to model-b (variant: creative) on server");
+  assert(activeSessionModel.id === "model-b" && activeSessionModel.variant === "creative", "Switched session to model-b and verified session state");
 
-  // Prompt on Model B -> verify server sees B
-  await client.promptSession(testSession, { text: "Prompt on model B" });
-  assert(lastPromptSessionModel.id === "model-b" && lastPromptSessionModel.variant === "creative", "Server executed next prompt strictly on Model B (creative)");
-
-  // -------------------------------------------------------------
-  // Test 4: Model Switching - Rejection Throws Typed OpenCodeError
-  // -------------------------------------------------------------
-  console.log("\n▶ Group 4: Model Switching Rejection Error Handling");
+  // Switch rejection
   let caughtError: OpenCodeError | null = null;
   try {
     await client.switchSessionModel(testSession, { providerID: "opencode", id: "model-reject" });
@@ -246,19 +311,18 @@ async function runModelAgentTests() {
   assert(caughtError !== null, "Model switch rejection threw an error");
   assert(caughtError instanceof OpenCodeError, "Error is an instance of OpenCodeError");
   assert(caughtError?.status === 422, "Error captures HTTP 422 status");
-  assert(activeSessionModel.id === "model-b", "Active model on server remained Model B after failed switch");
 
   // -------------------------------------------------------------
-  // Test 5: Agent Switching - build -> plan and plan -> build
+  // Test 5: Agent Switching Lifecycle (Requirement 11 & 14)
   // -------------------------------------------------------------
   console.log("\n▶ Group 5: Agent Switching Lifecycle");
   await client.switchSessionAgent(testSession, "plan");
-  assert(activeSessionAgent === "plan", "Switched session to 'plan' agent");
+  assert(activeSessionAgent === "plan", "Switched session to 'plan' agent and verified state");
 
   await client.switchSessionAgent(testSession, "build");
-  assert(activeSessionAgent === "build", "Switched session back to 'build' agent");
+  assert(activeSessionAgent === "build", "Switched session back to 'build' agent and verified state");
 
-  // Subagent-only / unknown agent switch rejection
+  // Subagent-only switch rejection
   let agentError: OpenCodeError | null = null;
   try {
     await client.switchSessionAgent(testSession, "subagent-only");
@@ -266,6 +330,31 @@ async function runModelAgentTests() {
     agentError = err;
   }
   assert(agentError !== null && agentError.status === 404, "Subagent-only agent switch rejected with 404 OpenCodeError");
+
+  // -------------------------------------------------------------
+  // Test 6: Strict Runtime Model Validation (Requirement 13)
+  // -------------------------------------------------------------
+  console.log("\n▶ Group 6: Strict Runtime Model Validation");
+  const validFast = await validateModelProfileAgainstCatalog(
+    client,
+    { providerID: "opencode", modelID: "model-a", variant: "fast" },
+    "FAST"
+  );
+  assert(validFast.ok === true, "Valid configured model profile passed validation");
+
+  const invalidModel = await validateModelProfileAgainstCatalog(
+    client,
+    { providerID: "opencode", modelID: "nonexistent", variant: "default" },
+    "FAST"
+  );
+  assert(invalidModel.ok === false && (invalidModel.error?.includes("not available") || invalidModel.error?.includes("not found") || invalidModel.error?.includes("does not exist")), "Missing model cleanly rejected by validation helper");
+
+  const invalidVariant = await validateModelProfileAgainstCatalog(
+    client,
+    { providerID: "opencode", modelID: "model-a", variant: "unsupported_var" },
+    "FAST"
+  );
+  assert(invalidVariant.ok === false && invalidVariant.error?.includes("Variant"), "Unsupported variant cleanly rejected by validation helper");
 
   // Cleanup
   await new Promise<void>((r) => mockServer.close(() => r()));

@@ -104,7 +104,6 @@ To customize model selections, daemon ports, or weights, create `jarvis.config.j
       "variant": "default",
       "agentID": "build"
     },
-    "creativityWeight": 0.7,
     "agentWeight": 0.5
   },
   "personality": {
@@ -115,56 +114,99 @@ To customize model selections, daemon ports, or weights, create `jarvis.config.j
 }
 ```
 
-### Model Weight Terminology
-- **Creativity Weight (Temperature)**: Sets the sampling temperature for generation where supported by the active provider/variant.
-- **Agent Routing Bias**: Adjusts the router's classification threshold for directing ambiguous prompts to the AGENT path instead of FAST. It does **not** change model parameters.
+### Model Governance & Agent Routing Bias
+- **Agent Routing Bias (`agentWeight`)**: Adjusts the router's classification threshold for directing ambiguous prompts to the AGENT path instead of FAST. It does **not** change model parameters.
+- **Sampling Parameters / Temperature**: Generic temperature sliders have been removed from the JARVIS UI because OpenCode governs model sampling parameters directly through model definitions and supported variant presets (e.g. `high`, `fast`, `thinking`). Unsupported UI controls that have no runtime effect are strictly disallowed.
 
 ---
 
 ## 5. Model & Agent Discovery and Dynamic Switching
 
-### Model Discovery (`GET /api/model`)
-JARVIS normalizes models from OpenCode preserving:
+### Dynamic Model Discovery (`GET /api/model`)
+JARVIS queries the live OpenCode catalog and normalizes models:
 - Canonical identity: `providerID + modelID` (e.g. `opencode/mimo-v2.6-flash-free`)
 - Name, family, capabilities, and variants
 - Pricing metadata (free vs paid)
+- If the catalog is unreachable, JARVIS fails clearly rather than hiding errors or pretending the catalog is empty.
 
-### Agent Discovery (`GET /api/agents`)
-JARVIS discovers usable primary agents from OpenCode, filtering out hidden, disabled, or subagent-only helpers. Usable primary agents include `build` and `plan`.
+### Model Variant Validation
+OpenCode models specify variants as either strings or structured objects (e.g. `{ id: "high", settings: {}, headers: {}, body: {} }`).
+JARVIS enforces strict variant validation everywhere via `modelSupportsVariant(model, variant)`:
+- Missing/empty variant defaults safely to "default".
+- String variants match directly (`variants.includes(variant)`).
+- Object variants match against `variant.id`.
+- Unsupported variants are rejected immediately before execution or switching.
 
-### Dynamic Switching (`POST /api/session/:id/model` & `POST /api/session/:id/agent`)
-- When switching a model or agent, JARVIS first validates against the active OpenCode catalog.
-- Executes `POST /api/session/:id/model` or `POST /api/session/:id/agent` on the live daemon.
-- Requires strict HTTP 204 success response. If OpenCode rejects, JARVIS aborts execution and throws a typed `OpenCodeError` detailing provider, model, variant, and HTTP status.
-- The UI retains previous selection on failure and displays the exact error message.
+### Dynamic Agent Discovery (`GET /api/agents`)
+JARVIS discovers usable primary agents from OpenCode:
+- Accepts agents with `mode === "primary"` or `mode === "all"`.
+- Strictly filters out hidden (`hidden: true`) and disabled (`disabled: true`) agents.
+
+### Session Model & Agent Switching
+- **Session Switching ("Switch")**: Immediately switches the active OpenCode session via `POST /api/session/:id/model` or `POST /api/session/:id/agent`.
+- **Persistent Profiles ("Save & Switch")**: Atomically writes updated FAST/AGENT model and agent configurations to `jarvis.config.json` via safe temporary write and rename semantics, surviving server restarts.
+- **Session State Audit**: After switching, JARVIS queries `GET /api/session/:id` to verify that OpenCode actually applied the requested model, provider, and agent, rather than blindly trusting HTTP 204.
 
 ---
 
-## 6. Security-Hardened Permission Confirmation Flow
+## 6. OpenCode Protocol Specifications
 
-JARVIS strictly enforces user consent and **never silently grants `always` permissions**.
+### Canonical Prompt Request Payload
+JARVIS strictly conforms to the OpenCode v2 prompt schema:
+```json
+{
+  "prompt": {
+    "text": "User instructions or contextual prompt",
+    "files": [],
+    "agents": []
+  },
+  "delivery": "steer",
+  "resume": true
+}
+```
+*Note: Top-level `text`, `files`, `agents`, `skills`, or `metadata` are unsupported by OpenCode and are never sent by JARVIS.*
+
+### Canonical Permission Reply Payload
+When replying to an OpenCode permission request:
+```json
+{
+  "reply": "once" | "always" | "reject",
+  "message": "Optional user or system explanation"
+}
+```
+*Note: The deprecated `decision` field is never transmitted.*
+
+### Deadlock-Free Permission Confirmation Flow
+JARVIS strictly guarantees that permission requests unblock execution without deadlocks:
 
 ```text
-OpenCode emits permission request
+OpenCode emits SSE permission request
         │
         ▼
-JARVIS catches event & halts execution
+JARVIS captures event & creates authoritative pending confirmation
         │
-        ├── Emits `confirm_required` event with unique requestId
+        ├── Emits UI `confirm_required` event with JARVIS requestId
         │
         ▼
-Web UI displays Permission Confirmation Modal
+Execution pauses awaiting resolution
         │
-        ├── [Deny (Reject)] ─────────────► Sends reply: "reject" to OpenCode
-        ├── [Approve Once] ──────────────► Sends reply: "once" to OpenCode
-        └── [Always Allow (Durable)] ────► Sends reply: "always" to OpenCode (explicit user click only)
+        ├── UI displays modal with action details and resources
+        │
+        ▼
+User selects: [Approve Once] | [Always Allow] | [Deny]
+        │
+        ├── UI calls POST /api/confirm with requestId and decision
+        │
+        ▼
+JARVIS core resolves pending promise & dispatches reply to OpenCode
+        │
+        ▼
+OpenCode resumes execution & emits remaining stream events
 ```
 
-- **Approval**: Default approval sends `reply: "once"`, granting single-execution access.
-- **Denial**: User denial sends `reply: "reject"`.
-- **Timeout**: Bounded permission timeout sends `reply: "reject"`.
-- **Durable Approval**: Only the dedicated "Always Allow" button in the UI sends `reply: "always"`.
-- Expired or unknown request IDs return HTTP 404 and cannot approve subsequent requests.
+- **Safety & Clean-up**: Bounded timeouts automatically dispatch `reject`.
+- **Disconnection**: Socket disconnects or cancellations abort pending requests cleanly.
+- **Verification**: End-to-end integration tests verify that execution is strictly blocked until user approval is received.
 
 ---
 

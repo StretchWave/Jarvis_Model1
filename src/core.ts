@@ -8,11 +8,12 @@
  * 4. AGENT: Deep reasoning & coding with local OpenCode
  */
 
-import { loadConfig, type JarvisConfig } from "./config.ts";
+import path from "node:path";
+import { loadConfig, saveConfig, type JarvisConfig } from "./config.ts";
 import { Logger, rootLogger } from "./logger.ts";
 import { Database } from "./database.ts";
 import { Router, type RoutingDecision } from "./router.ts";
-import { OpenCodeClient, type OpenCodeModelRef } from "./opencode_client.ts";
+import { OpenCodeClient, type OpenCodeModelRef, modelSupportsVariant } from "./opencode_client.ts";
 import { SessionManager } from "./session_manager.ts";
 import { MemoryManager } from "./memory/memory_manager.ts";
 import { PermissionManager, type PermissionCheckResult } from "./permissions.ts";
@@ -51,6 +52,7 @@ export interface PendingPermission {
 }
 
 export class JarvisCore {
+  public configPath: string;
   public config: JarvisConfig;
   public logger: Logger;
   public db: Database;
@@ -72,6 +74,7 @@ export class JarvisCore {
   private pendingPermissions: Map<string, PendingPermission> = new Map();
 
   constructor(customConfigPath?: string) {
+    this.configPath = customConfigPath || path.resolve(process.cwd(), "jarvis.config.json");
     this.config = loadConfig(customConfigPath);
     this.logger = new Logger("JarvisCore", this.config.logging.level, this.config.logging.format);
     this.db = new Database(this.config.databasePath, this.logger);
@@ -159,17 +162,54 @@ export class JarvisCore {
         this.logger.warn("OpenCode agent catalog check failed:", { error: err.message });
       }
 
-      // 3. Reconcile active session model state across startup (Requirement 15)
+      // 3. Reconcile active session model/agent state across startup (Requirements 10 & 14)
       try {
         const active = await this.sessionMgr.getOrCreateActiveSession("general");
-        if (active.opencode_session_id) {
-          await this.opencode.switchSessionModel(active.opencode_session_id, {
+        const ocSessionId = await this.sessionMgr.ensureOpenCodeSession(active.id).catch(() => active.opencode_session_id || null);
+        if (ocSessionId) {
+          const sessionState = await this.opencode.getSession(ocSessionId);
+          const currentModel = sessionState?.model;
+          const currentAgent = sessionState?.agent;
+
+          const targetModel = {
             providerID: this.config.models.fast.providerID,
             id: this.config.models.fast.modelID,
             variant: this.config.models.fast.variant || "default",
-          }).catch(() => {});
+          };
+
+          const modelMatches =
+            currentModel &&
+            currentModel.providerID === targetModel.providerID &&
+            (currentModel.id === targetModel.id || currentModel.modelID === targetModel.id);
+
+          if (!modelMatches) {
+            this.logger.info(`Reconciling session model from ${currentModel ? `${currentModel.providerID}/${currentModel.id}` : "none"} to ${targetModel.providerID}/${targetModel.id}...`);
+            try {
+              await this.opencode.switchSessionModel(ocSessionId, targetModel);
+              this.logger.info(`Session model successfully reconciled to ${targetModel.providerID}/${targetModel.id}`);
+            } catch (switchErr: any) {
+              this.logger.error(`Startup model reconciliation failed for session ${ocSessionId}: ${switchErr.message}`);
+            }
+          } else {
+            this.logger.info(`Session model already aligned with configured FAST model (${targetModel.providerID}/${targetModel.id})`);
+          }
+
+          const targetAgent = this.config.models.agent.agentID || "build";
+          if (currentAgent !== targetAgent) {
+            this.logger.info(`Reconciling session agent from "${currentAgent}" to "${targetAgent}"...`);
+            try {
+              await this.opencode.switchSessionAgent(ocSessionId, targetAgent);
+              this.logger.info(`Session agent successfully reconciled to "${targetAgent}"`);
+            } catch (agentErr: any) {
+              this.logger.error(`Startup agent reconciliation failed for session ${ocSessionId}: ${agentErr.message}`);
+            }
+          } else {
+            this.logger.info(`Session agent already aligned with configured AGENT agent ("${targetAgent}")`);
+          }
         }
-      } catch {}
+      } catch (err: any) {
+        this.logger.error(`Startup session reconciliation failed: ${err.message}`);
+      }
     } else {
       // Diagnostic human-readable error reporting (Requirement 19)
       if (!cliFound) {
@@ -182,7 +222,10 @@ export class JarvisCore {
     }
   }
 
-  public updateModels(models: { fast?: any; agent?: any; agentWeight?: number; creativityWeight?: number }): void {
+  public updateModels(
+    models: { fast?: any; agent?: any; agentWeight?: number; creativityWeight?: number },
+    persist: boolean = false
+  ): void {
     if (models.fast) {
       this.config.models.fast = { ...this.config.models.fast, ...models.fast };
       this.fastModel = createModelExecutor({
@@ -210,9 +253,15 @@ export class JarvisCore {
       this.router.setAgentWeight(models.agentWeight);
       this.logger.info(`Updated router agent weight to ${models.agentWeight}`);
     }
-    if (typeof models.creativityWeight === "number") {
-      this.config.models.creativityWeight = models.creativityWeight;
-      this.logger.info(`Updated model creativity weight to ${models.creativityWeight}`);
+
+    if (persist) {
+      try {
+        saveConfig(this.config, this.configPath);
+        this.logger.info(`Persisted configuration to ${this.configPath}`);
+      } catch (err: any) {
+        this.logger.error(`Failed to persist configuration to ${this.configPath}: ${err.message}`);
+        throw err;
+      }
     }
   }
 
@@ -246,9 +295,13 @@ export class JarvisCore {
 
     const timer = setTimeout(() => {
       if (this.pendingPermissions.has(jarvisRequestId)) {
+        const p = this.pendingPermissions.get(jarvisRequestId);
         this.pendingPermissions.delete(jarvisRequestId);
         this.logger.warn(`Permission request ${jarvisRequestId} timed out; defaulting to 'reject'`);
         resolver("reject");
+        if (p?.opencodeSessionId && p?.opencodeRequestId) {
+          this.opencode.replyPermission(p.opencodeSessionId, p.opencodeRequestId, "reject").catch(() => {});
+        }
       }
     }, timeoutMs);
 
@@ -275,12 +328,23 @@ export class JarvisCore {
   }
 
   public confirmAction(requestId: string, decision: "once" | "always" | "reject" | boolean): boolean {
-    const pending = this.pendingPermissions.get(requestId);
+    let pending = this.pendingPermissions.get(requestId);
+    if (!pending) {
+      for (const p of this.pendingPermissions.values()) {
+        if (p.opencodeRequestId === requestId) {
+          pending = p;
+          break;
+        }
+      }
+    }
     if (!pending) return false;
 
     if (Date.now() > pending.expiresAt) {
-      this.pendingPermissions.delete(requestId);
+      this.pendingPermissions.delete(pending.jarvisRequestId);
       pending.resolve("reject");
+      if (pending.opencodeSessionId && pending.opencodeRequestId) {
+        this.opencode.replyPermission(pending.opencodeSessionId, pending.opencodeRequestId, "reject").catch(() => {});
+      }
       return false;
     }
 
@@ -291,8 +355,14 @@ export class JarvisCore {
       dec = decision;
     }
 
-    this.pendingPermissions.delete(requestId);
+    this.pendingPermissions.delete(pending.jarvisRequestId);
     pending.resolve(dec);
+
+    if (pending.opencodeSessionId && pending.opencodeRequestId) {
+      this.opencode.replyPermission(pending.opencodeSessionId, pending.opencodeRequestId, dec).catch((err) => {
+        this.logger.warn(`Failed sending OpenCode permission reply for ${pending.opencodeRequestId}:`, err);
+      });
+    }
     return true;
   }
 
@@ -484,27 +554,22 @@ export class JarvisCore {
     if (decision.route === "AGENT") {
       let agentFinalText = "";
 
-      const onPerm = async (p: {
-        opencodeSessionId: string;
-        opencodeRequestId: string;
-        action: string;
-        details?: string;
-        resources?: string[];
-      }): Promise<"once" | "always" | "reject"> => {
-        const { promise } = this.requestConfirmation({
-          sessionId: session.id,
-          opencodeSessionId: p.opencodeSessionId,
-          opencodeRequestId: p.opencodeRequestId,
-          action: p.action,
-          details: p.details || `Permission requested for ${p.action}`,
-          resources: p.resources,
-        });
-        return await promise;
-      };
-
-      for await (const ev of this.agentDispatcher.executeTask(raw, session.id, projectId, signal, onPerm)) {
+      for await (const ev of this.agentDispatcher.executeTask(raw, session.id, projectId, signal)) {
         if (ev.type === "confirm_required") {
-          yield { type: "confirm_required", action: ev.action, details: ev.details, requestId: ev.requestId };
+          const { requestId: jarvisRequestId } = this.requestConfirmation({
+            sessionId: session.id,
+            opencodeSessionId: ev.opencodeSessionId,
+            opencodeRequestId: ev.requestId,
+            action: ev.action,
+            details: ev.details,
+            resources: ev.resources,
+          });
+          yield {
+            type: "confirm_required",
+            action: ev.action,
+            details: ev.details,
+            requestId: jarvisRequestId,
+          };
         } else if (ev.type === "progress") {
           this.inspector.updateOperation(taskRun.runId, ev.message);
           yield { type: "progress", message: ev.message };

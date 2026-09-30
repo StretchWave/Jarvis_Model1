@@ -233,6 +233,9 @@ export class Router {
       "code review",
       "code audit",
       "audit code",
+      "deploy",
+      "deploy project",
+      "deploy the project",
     ];
 
     for (const kw of codingKeywords) {

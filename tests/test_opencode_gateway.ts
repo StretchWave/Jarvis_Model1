@@ -182,14 +182,14 @@ async function runOpenCodeGatewayTests() {
   const initialOcId = await jarvis.sessionMgr.ensureOpenCodeSession(activeSession.id);
 
   // Turn 1: Introduce a specific detail
-  await collectEvents(jarvis, "My secret phrase is NEBULA-99. Acknowledge briefly.", activeSession.id);
+  await collectEvents(jarvis, "My favorite project codename is NEBULA-99. Acknowledge briefly.", activeSession.id);
 
   // Verify same OpenCode session is retained
   const followUpOcId = await jarvis.sessionMgr.ensureOpenCodeSession(activeSession.id);
   assert(initialOcId === followUpOcId, `OpenCode session ID reused across turns (${initialOcId})`);
 
   // Turn 2: Query the detail
-  const t6Events = await collectEvents(jarvis, "What is my secret phrase?", activeSession.id);
+  const t6Events = await collectEvents(jarvis, "What was the project codename I just mentioned?", activeSession.id);
   const t6Done = t6Events.find(e => e.type === "done") as { type: "done"; fullText: string } | undefined;
   assert(
     t6Done !== undefined && t6Done.fullText.includes("NEBULA-99"),
