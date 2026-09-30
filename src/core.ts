@@ -64,6 +64,9 @@ export class JarvisCore {
     this.logger = new Logger("JarvisCore", this.config.logging.level, this.config.logging.format);
     this.db = new Database(this.config.databasePath, this.logger);
     this.router = new Router();
+    if (this.config.models.agentWeight !== undefined) {
+      this.router.setAgentWeight(this.config.models.agentWeight);
+    }
     this.opencode = new OpenCodeClient(this.config.opencode.serviceFile, this.logger);
     this.sessionMgr = new SessionManager(this.db, this.opencode, this.logger);
     this.memoryMgr = new MemoryManager(this.db, this.logger);
@@ -124,7 +127,7 @@ export class JarvisCore {
     }
   }
 
-  public updateModels(models: { fast?: any; agent?: any }): void {
+  public updateModels(models: { fast?: any; agent?: any; agentWeight?: number; creativityWeight?: number }): void {
     if (models.fast) {
       this.config.models.fast = { ...this.config.models.fast, ...models.fast };
       this.fastModel = createModelExecutor({
@@ -146,6 +149,15 @@ export class JarvisCore {
         this.config.models.agent
       );
       this.logger.info(`Updated active AGENT model to ${this.config.models.agent.providerID}/${this.config.models.agent.modelID}`);
+    }
+    if (typeof models.agentWeight === "number") {
+      this.config.models.agentWeight = models.agentWeight;
+      this.router.setAgentWeight(models.agentWeight);
+      this.logger.info(`Updated router agent weight to ${models.agentWeight}`);
+    }
+    if (typeof models.creativityWeight === "number") {
+      this.config.models.creativityWeight = models.creativityWeight;
+      this.logger.info(`Updated model creativity weight to ${models.creativityWeight}`);
     }
   }
 

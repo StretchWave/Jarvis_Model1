@@ -42,6 +42,16 @@ export interface RoutingDecision {
 }
 
 export class Router {
+  private agentWeight: number = 0.5;
+
+  public setAgentWeight(weight: number): void {
+    this.agentWeight = Math.max(0, Math.min(1, weight));
+  }
+
+  public getAgentWeight(): number {
+    return this.agentWeight;
+  }
+
   /**
    * Deterministically route a user prompt to one of the 4 execution paths.
    */
@@ -238,6 +248,13 @@ export class Router {
 
     if (/\b(?:modify|edit|refactor|rewrite|debug|troubleshoot)\b.*\b(?:code|file|repository|project|script|blueprint)\b/i.test(lower)) {
       return { reason: "Code or project modification task requiring reasoning & tool execution" };
+    }
+
+    // Adaptive agent weight: when agentWeight is elevated (> 0.6), route deep analysis & architectural planning to AGENT
+    if (this.agentWeight > 0.6) {
+      if (/\b(?:architect|deep dive|comprehensive plan|design pattern|step by step plan|system design)\b/i.test(lower)) {
+        return { reason: `Triggered by elevated agent weight (${this.agentWeight.toFixed(2)}): complex analytical planning request` };
+      }
     }
 
     return null;

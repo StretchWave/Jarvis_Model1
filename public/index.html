@@ -678,8 +678,8 @@
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(12px);
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(14px);
       display: none;
       align-items: center;
       justify-content: center;
@@ -687,15 +687,17 @@
     }
 
     .modal {
-      width: 480px;
-      background: rgba(12, 18, 32, 0.96);
+      width: 540px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: rgba(10, 16, 30, 0.96);
       border: 1px solid var(--panel-border-bright);
       border-radius: var(--radius);
       padding: 24px;
       display: flex;
       flex-direction: column;
       gap: 16px;
-      box-shadow: 0 0 35px rgba(0, 210, 255, 0.2);
+      box-shadow: 0 0 40px rgba(0, 210, 255, 0.25);
     }
 
     .modal-title {
@@ -705,6 +707,46 @@
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+
+    /* Filter Bar for Free vs Paid Models */
+    .modal-filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(6, 10, 18, 0.7);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-sm);
+    }
+
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+    }
+
+    .filter-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid transparent;
+      border-radius: 14px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-pill:hover {
+      background: rgba(0, 210, 255, 0.12);
+      color: #fff;
+    }
+
+    .filter-pill.active {
+      background: rgba(0, 210, 255, 0.22);
+      border-color: var(--accent);
+      color: var(--accent-bright);
+      box-shadow: 0 0 10px var(--accent-glow);
     }
 
     .modal-form-group {
@@ -718,24 +760,164 @@
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 1px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .modal-select {
-      background: rgba(8, 12, 22, 0.85);
+      background: rgba(6, 10, 18, 0.9);
       border: 1px solid var(--panel-border);
       border-radius: 8px;
       color: #fff;
-      padding: 8px 12px;
+      padding: 10px 12px;
       font-family: inherit;
-      font-size: 13px;
+      font-size: 13.5px;
       outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .modal-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .modal-select optgroup {
+      background: #080d1a;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 12px;
+      padding: 6px 0;
+    }
+
+    .modal-select option {
+      background: #0d1424;
+      color: #e6edf3;
+      font-weight: 400;
+      padding: 4px 8px;
+    }
+
+    .model-badge-info {
+      font-size: 11.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .model-badge-info.free {
+      color: #3fb950;
+      border-color: rgba(63, 185, 80, 0.3);
+      background: rgba(63, 185, 80, 0.08);
+    }
+
+    .model-badge-info.paid {
+      color: #ffaa00;
+      border-color: rgba(255, 170, 0, 0.3);
+      background: rgba(255, 170, 0, 0.08);
+    }
+
+    /* Weight Sliders Section */
+    .weight-section {
+      background: rgba(6, 10, 18, 0.65);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .weight-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--accent);
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(0, 210, 255, 0.12);
+      padding-bottom: 6px;
+    }
+
+    .weight-slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .weight-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+    }
+
+    .weight-name {
+      font-weight: 600;
+      color: #e6edf3;
+    }
+
+    .weight-val-badge {
+      background: rgba(0, 210, 255, 0.15);
+      border: 1px solid var(--accent);
+      color: var(--accent-bright);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-family: var(--font-mono);
+    }
+
+    .weight-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.12);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .weight-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent-glow);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .weight-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      background: #33dcff;
+    }
+
+    .weight-sub-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-subtle);
+    }
+
+    .weight-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 6px 8px;
+      border-radius: 4px;
     }
 
     .modal-buttons {
       display: flex;
       justify-content: flex-end;
       gap: 10px;
-      margin-top: 10px;
+      margin-top: 6px;
     }
 
     .btn {
@@ -925,16 +1107,73 @@
   <div class="modal-overlay" id="modelModal">
     <div class="modal">
       <div class="modal-title">
-        <span>⚙️ OpenCode Model Profiles</span>
+        <span>⚙️ OpenCode Model Profiles & Weights</span>
       </div>
+
+      <!-- Free vs Paid Filter Tabs -->
+      <div class="modal-filter-bar">
+        <span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px;">Filter Catalog:</span>
+        <div class="filter-pills">
+          <button class="filter-pill active" id="filterAllBtn">All (27)</button>
+          <button class="filter-pill" id="filterFreeBtn">🆓 Free Tier (8)</button>
+          <button class="filter-pill" id="filterPaidBtn">💳 Paid Models (19)</button>
+        </div>
+      </div>
+
+      <!-- FAST Conversational Model -->
       <div class="modal-form-group">
-        <label for="fastModelSelect">FAST Conversational Model:</label>
+        <label for="fastModelSelect">
+          <span>FAST Conversational Model:</span>
+          <span style="font-size: 11px; color: var(--text-muted); text-transform: none;">(Low latency, casual chat)</span>
+        </label>
         <select class="modal-select" id="fastModelSelect"></select>
+        <div class="model-badge-info" id="fastModelBadge"></div>
       </div>
+
+      <!-- AGENT Deep Reasoning Model -->
       <div class="modal-form-group">
-        <label for="agentModelSelect">AGENT Deep Reasoning / Coding Model:</label>
+        <label for="agentModelSelect">
+          <span>AGENT Deep Reasoning & Coding Model:</span>
+          <span style="font-size: 11px; color: var(--text-muted); text-transform: none;">(High capacity, tools, multi-step)</span>
+        </label>
         <select class="modal-select" id="agentModelSelect"></select>
+        <div class="model-badge-info" id="agentModelBadge"></div>
       </div>
+
+      <!-- Model Weight Sliders Section -->
+      <div class="weight-section">
+        <div class="weight-title">⚖️ Model & Routing Weights</div>
+
+        <!-- Creativity / Temperature Weight -->
+        <div class="weight-slider-group">
+          <div class="weight-label-row">
+            <span class="weight-name">Creativity Weight (Temperature):</span>
+            <span class="weight-val-badge" id="creativityWeightVal">0.70</span>
+          </div>
+          <input type="range" class="weight-slider" id="creativityWeightSlider" min="0" max="1" step="0.05" value="0.7">
+          <div class="weight-sub-row">
+            <span>0.0 (Deterministic / Exact)</span>
+            <span>1.0 (Creative / Exploratory)</span>
+          </div>
+        </div>
+
+        <!-- Agent vs Fast Routing Weight -->
+        <div class="weight-slider-group">
+          <div class="weight-label-row">
+            <span class="weight-name">Agent Routing Bias (Task Weight):</span>
+            <span class="weight-val-badge" id="agentWeightVal">0.50 (Balanced)</span>
+          </div>
+          <input type="range" class="weight-slider" id="agentWeightSlider" min="0" max="1" step="0.05" value="0.5">
+          <div class="weight-sub-row">
+            <span>0.0 (Fast Bias — Max Speed)</span>
+            <span>1.0 (Agent Bias — Deep Reasoning)</span>
+          </div>
+          <div class="weight-desc">
+            Elevating Agent Weight routes complex planning, architecture, and multi-step tasks to your AGENT model. Lowering it favors instant sub-second FAST replies.
+          </div>
+        </div>
+      </div>
+
       <div class="modal-buttons">
         <button class="btn btn-cancel" id="btnModelCancel">Cancel</button>
         <button class="btn btn-approve" id="btnModelSave">Save & Switch</button>
@@ -2140,39 +2379,172 @@
       }
     });
 
-    // Model Profile Switcher Modal Logic
+    // Model Profile Switcher & Weight Modal Logic
     const modelModal = document.getElementById("modelModal");
     const modelConfigBtn = document.getElementById("modelConfigBtn");
     const btnModelCancel = document.getElementById("btnModelCancel");
     const btnModelSave = document.getElementById("btnModelSave");
     const fastModelSelect = document.getElementById("fastModelSelect");
     const agentModelSelect = document.getElementById("agentModelSelect");
+    const fastModelBadge = document.getElementById("fastModelBadge");
+    const agentModelBadge = document.getElementById("agentModelBadge");
+    const creativityWeightSlider = document.getElementById("creativityWeightSlider");
+    const creativityWeightVal = document.getElementById("creativityWeightVal");
+    const agentWeightSlider = document.getElementById("agentWeightSlider");
+    const agentWeightVal = document.getElementById("agentWeightVal");
+
+    const filterAllBtn = document.getElementById("filterAllBtn");
+    const filterFreeBtn = document.getElementById("filterFreeBtn");
+    const filterPaidBtn = document.getElementById("filterPaidBtn");
+
+    let cachedCatalog = [];
+    let currentConfigured = {};
+    let activeCatalogFilter = "all";
+
+    function isFreeModel(m) {
+      if (!m) return false;
+      const pid = (m.providerID || "").toLowerCase();
+      const mid = (m.id || m.modelID || "").toLowerCase();
+      return pid === "opencode" || mid.includes("free") || mid === "big-pickle";
+    }
+
+    function updateModelBadge(selectEl, badgeEl) {
+      if (!selectEl.value) {
+        badgeEl.textContent = "";
+        badgeEl.className = "model-badge-info";
+        return;
+      }
+      try {
+        const val = JSON.parse(selectEl.value);
+        const free = isFreeModel({ providerID: val.providerID, id: val.modelID });
+        if (free) {
+          badgeEl.className = "model-badge-info free";
+          badgeEl.innerHTML = `<span>🆓</span> <strong>OpenCode Free Tier</strong> — Zero-cost local inference via daemon. No API key needed.`;
+        } else {
+          badgeEl.className = "model-badge-info paid";
+          badgeEl.innerHTML = `<span>💳</span> <strong>Paid / Cloud Model</strong> — Requires valid ${val.providerID.toUpperCase()} API key in OpenCode.`;
+        }
+      } catch {
+        badgeEl.textContent = "";
+      }
+    }
+
+    function renderDropdowns(filter) {
+      activeCatalogFilter = filter;
+      [filterAllBtn, filterFreeBtn, filterPaidBtn].forEach(b => b.classList.remove("active"));
+      if (filter === "all") filterAllBtn.classList.add("active");
+      else if (filter === "free") filterFreeBtn.classList.add("active");
+      else if (filter === "paid") filterPaidBtn.classList.add("active");
+
+      const currentFastVal = fastModelSelect.value;
+      const currentAgentVal = agentModelSelect.value;
+
+      [fastModelSelect, agentModelSelect].forEach((selectEl, idx) => {
+        const isFast = idx === 0;
+        selectEl.innerHTML = "";
+
+        const freeModels = cachedCatalog.filter(m => isFreeModel(m));
+        const paidModels = cachedCatalog.filter(m => !isFreeModel(m));
+
+        if (filter === "all" || filter === "free") {
+          const grpFree = document.createElement("optgroup");
+          grpFree.label = `🆓 OpenCode Free Tier (${freeModels.length})`;
+          for (const m of freeModels) {
+            const opt = document.createElement("option");
+            opt.value = JSON.stringify({ providerID: m.providerID, modelID: m.id });
+            opt.textContent = `🆓 ${m.name || m.id} (Free Tier)`;
+            grpFree.appendChild(opt);
+          }
+          selectEl.appendChild(grpFree);
+        }
+
+        if (filter === "all" || filter === "paid") {
+          const grpPaid = document.createElement("optgroup");
+          grpPaid.label = `💳 Paid / External Providers (${paidModels.length})`;
+          for (const m of paidModels) {
+            const opt = document.createElement("option");
+            opt.value = JSON.stringify({ providerID: m.providerID, modelID: m.id });
+            opt.textContent = `💳 ${m.name || m.id} (${m.providerID.toUpperCase()})`;
+            grpPaid.appendChild(opt);
+          }
+          selectEl.appendChild(grpPaid);
+        }
+
+        // Restore selection
+        const targetModelID = isFast ? currentConfigured.fast?.modelID : currentConfigured.agent?.modelID;
+        let matched = false;
+        for (const opt of selectEl.options) {
+          try {
+            const parsed = JSON.parse(opt.value);
+            if (parsed.modelID === targetModelID) {
+              opt.selected = true;
+              matched = true;
+              break;
+            }
+          } catch {}
+        }
+        if (!matched && selectEl.options.length > 0) {
+          selectEl.options[0].selected = true;
+        }
+      });
+
+      updateModelBadge(fastModelSelect, fastModelBadge);
+      updateModelBadge(agentModelSelect, agentModelBadge);
+    }
+
+    fastModelSelect.addEventListener("change", () => updateModelBadge(fastModelSelect, fastModelBadge));
+    agentModelSelect.addEventListener("change", () => updateModelBadge(agentModelSelect, agentModelBadge));
+
+    filterAllBtn.addEventListener("click", () => renderDropdowns("all"));
+    filterFreeBtn.addEventListener("click", () => renderDropdowns("free"));
+    filterPaidBtn.addEventListener("click", () => renderDropdowns("paid"));
+
+    // Creativity Weight Slider
+    creativityWeightSlider.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value);
+      creativityWeightVal.textContent = val.toFixed(2);
+    });
+
+    // Agent Weight Slider
+    function updateAgentWeightLabel(val) {
+      if (val < 0.35) {
+        agentWeightVal.textContent = `${val.toFixed(2)} (Fast Conversational Bias)`;
+      } else if (val > 0.65) {
+        agentWeightVal.textContent = `${val.toFixed(2)} (Deep Reasoning / Agent Bias)`;
+      } else {
+        agentWeightVal.textContent = `${val.toFixed(2)} (Balanced)`;
+      }
+    }
+
+    agentWeightSlider.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value);
+      updateAgentWeightLabel(val);
+    });
 
     modelConfigBtn.addEventListener("click", async () => {
       try {
         const res = await fetch("/api/models");
         const data = await res.json();
-        
-        fastModelSelect.innerHTML = "";
-        agentModelSelect.innerHTML = "";
+        cachedCatalog = data.catalog || [];
+        currentConfigured = data.configured || {};
 
-        for (const m of data.catalog || []) {
-          const val = `${m.providerID}/${m.id}`;
-          const label = `${m.name || m.id} (${m.providerID})`;
+        // Counts
+        const freeCount = cachedCatalog.filter(m => isFreeModel(m)).length;
+        const paidCount = cachedCatalog.filter(m => !isFreeModel(m)).length;
+        filterAllBtn.textContent = `All (${cachedCatalog.length})`;
+        filterFreeBtn.textContent = `🆓 Free Tier (${freeCount})`;
+        filterPaidBtn.textContent = `💳 Paid Models (${paidCount})`;
 
-          const optF = document.createElement("option");
-          optF.value = JSON.stringify({ providerID: m.providerID, modelID: m.id });
-          optF.textContent = label;
-          if (data.configured?.fast?.modelID === m.id) optF.selected = true;
-          fastModelSelect.appendChild(optF);
+        // Weights
+        const cWeight = currentConfigured.creativityWeight !== undefined ? currentConfigured.creativityWeight : 0.70;
+        creativityWeightSlider.value = cWeight;
+        creativityWeightVal.textContent = parseFloat(cWeight).toFixed(2);
 
-          const optA = document.createElement("option");
-          optA.value = JSON.stringify({ providerID: m.providerID, modelID: m.id });
-          optA.textContent = label;
-          if (data.configured?.agent?.modelID === m.id) optA.selected = true;
-          agentModelSelect.appendChild(optA);
-        }
+        const aWeight = currentConfigured.agentWeight !== undefined ? currentConfigured.agentWeight : 0.50;
+        agentWeightSlider.value = aWeight;
+        updateAgentWeightLabel(parseFloat(aWeight));
 
+        renderDropdowns("all");
         modelModal.style.display = "flex";
       } catch (err) {
         console.error("Failed to load models:", err);
@@ -2187,12 +2559,19 @@
       try {
         const fast = JSON.parse(fastModelSelect.value);
         const agent = JSON.parse(agentModelSelect.value);
+        const creativityWeight = parseFloat(creativityWeightSlider.value);
+        const agentWeight = parseFloat(agentWeightSlider.value);
 
         await fetch("/api/models", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fast, agent })
+          body: JSON.stringify({ fast, agent, creativityWeight, agentWeight })
         });
+
+        currentConfigured.fast = fast;
+        currentConfigured.agent = agent;
+        currentConfigured.creativityWeight = creativityWeight;
+        currentConfigured.agentWeight = agentWeight;
 
         modelModal.style.display = "none";
       } catch (err) {

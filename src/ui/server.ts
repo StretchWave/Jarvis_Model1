@@ -104,8 +104,8 @@ export class JarvisServer {
           req.on("data", chunk => body += chunk);
           req.on("end", () => {
             try {
-              const { fast, agent } = JSON.parse(body);
-              this.core.updateModels({ fast, agent });
+              const { fast, agent, agentWeight, creativityWeight } = JSON.parse(body);
+              this.core.updateModels({ fast, agent, agentWeight, creativityWeight });
               res.writeHead(200, { "Content-Type": "application/json" });
               res.end(JSON.stringify({ success: true, models: this.core.config.models }));
             } catch (err: any) {

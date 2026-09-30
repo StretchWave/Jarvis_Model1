@@ -6,11 +6,15 @@ export interface OpenCodeModelProfile {
   providerID: string;
   modelID: string;
   variant?: string;
+  temperature?: number;
+  weight?: number;
 }
 
 export interface JarvisModelsConfig {
   fast: OpenCodeModelProfile;
   agent: OpenCodeModelProfile;
+  agentWeight?: number;
+  creativityWeight?: number;
 }
 
 export interface FallbackProviderConfig {
@@ -105,6 +109,8 @@ export function getDefaultConfig(): JarvisConfig {
         modelID: process.env.JARVIS_AGENT_MODEL_ID || "mimo-v2.6-flash-free",
         variant: "default",
       },
+      agentWeight: 0.5,
+      creativityWeight: 0.7,
     },
     fallbackProvider: process.env.JARVIS_FAST_PROVIDER === "mock"
       ? {
@@ -163,6 +169,8 @@ export function loadConfig(configPath?: string): JarvisConfig {
         models: {
           fast: { ...defaults.models.fast, ...(userCfg.models?.fast || {}) },
           agent: { ...defaults.models.agent, ...(userCfg.models?.agent || {}) },
+          agentWeight: userCfg.models?.agentWeight !== undefined ? userCfg.models.agentWeight : defaults.models.agentWeight,
+          creativityWeight: userCfg.models?.creativityWeight !== undefined ? userCfg.models.creativityWeight : defaults.models.creativityWeight,
         },
         fallbackProvider: { ...defaults.fallbackProvider, ...(userCfg.fallbackProvider || {}) },
         logging: { ...defaults.logging, ...(userCfg.logging || {}) },
