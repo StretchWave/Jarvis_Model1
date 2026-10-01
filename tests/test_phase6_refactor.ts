@@ -35,10 +35,17 @@ async function runPhase6RefactorTests() {
   if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
 
-  const logger = new Logger("Phase6Refactor", "error");
-  const dbPath = path.join(testDir, "test_inspector.db");
-  const db = new Database(dbPath, logger);
-  const inspector = new RunInspector(db, logger);
+  let db: Database | undefined;
+  let reconnectedDb: Database | undefined;
+  let recoveryDb: Database | undefined;
+  let mockServer: http.Server | undefined;
+  let core: JarvisCore | undefined;
+
+  try {
+    const logger = new Logger("Phase6Refactor", "error");
+    const dbPath = path.join(testDir, "test_inspector.db");
+    db = new Database(dbPath, logger);
+    const inspector = new RunInspector(db, logger);
 
   // -----------------------------------------------------------------
   // 1. Task Run Lifecycle Management
@@ -110,7 +117,7 @@ async function runPhase6RefactorTests() {
   console.log("\n▶ Group 4: Persistence across Database Reconnection");
   db.close();
 
-  const reconnectedDb = new Database(dbPath, logger);
+  reconnectedDb = new Database(dbPath, logger);
   const reconnectedInspector = new RunInspector(reconnectedDb, logger);
 
   const persistedRun = reconnectedInspector.getRun(run1.runId);
@@ -124,7 +131,7 @@ async function runPhase6RefactorTests() {
   // -----------------------------------------------------------------
   console.log("\n▶ Group 5: Task Recovery without Replaying Request");
 
-  const recoveryDb = new Database(path.join(testDir, "recovery_test.db"), logger);
+  recoveryDb = new Database(path.join(testDir, "recovery_test.db"), logger);
   const targetSession = "ses_recover_100";
   const ocTargetSession = "oc_ses_target_999";
 
@@ -150,7 +157,7 @@ async function runPhase6RefactorTests() {
 
   // Setup mock OpenCode server returning completed message for ocTargetSession
   let promptCallCount = 0;
-  const mockServer = http.createServer((req, res) => {
+  mockServer = http.createServer((req, res) => {
     if (req.url === "/api/info" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, version: "2.0.15", pid: 8888 }));
@@ -216,21 +223,39 @@ async function runPhase6RefactorTests() {
   // -----------------------------------------------------------------
   console.log("\n▶ Group 6: End-to-End JarvisCore Automatic Run Auditing");
 
-  process.env.JARVIS_FAST_PROVIDER = "mock";
-  const core = new JarvisCore();
-  await core.initialize();
+    process.env.JARVIS_FAST_PROVIDER = "mock";
+    core = new JarvisCore();
+    await core.initialize();
 
-  // Execute a command
-  for await (const ev of core.processInput("calculate 10 + 20")) {}
+    // Execute a command
+    for await (const ev of core.processInput("calculate 10 + 20")) {}
 
-  const runs = core.inspector.listRuns();
-  assert(runs.length >= 1, "JarvisCore automatically tracked task run in inspector");
-  assert(runs[0].route === "DIRECT", "Tracked run has DIRECT route");
-  assert(runs[0].status === "completed", "Tracked run marked as completed");
-  assert(runs[0].toolEvents.length > 0, "Tracked run recorded tool event");
-
-  core.db.close();
-  delete process.env.JARVIS_FAST_PROVIDER;
+    const runs = core.inspector.listRuns();
+    assert(runs.length >= 1, "JarvisCore automatically tracked task run in inspector");
+    assert(runs[0].route === "DIRECT", "Tracked run has DIRECT route");
+    assert(runs[0].status === "completed", "Tracked run marked as completed");
+    assert(runs[0].toolEvents.length > 0, "Tracked run recorded tool event");
+  } finally {
+    try {
+      if (db) db.close();
+    } catch {}
+    try {
+      if (reconnectedDb) reconnectedDb.close();
+    } catch {}
+    try {
+      if (recoveryDb) recoveryDb.close();
+    } catch {}
+    if (mockServer) {
+      await new Promise<void>((r) => mockServer!.close(() => r()));
+    }
+    try {
+      if (core) core.shutdown();
+    } catch {}
+    delete process.env.JARVIS_FAST_PROVIDER;
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   // -----------------------------------------------------------------
   // Summary

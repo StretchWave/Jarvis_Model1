@@ -36,11 +36,15 @@ async function runPhase9Tests() {
   if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
 
-  const testDbPath = path.join(testDir, "test_phase9.db");
-  const testArtifactsDir = path.join(testDir, "artifacts");
-  const logger = new Logger("Phase9Test", "error", "pretty");
-  const db = new Database(testDbPath, logger);
-  const opencode = new OpenCodeClient("nonexistent_service.json", logger);
+  let db: Database | undefined;
+  let jarvis: JarvisCore | undefined;
+
+  try {
+    const testDbPath = path.join(testDir, "test_phase9.db");
+    const testArtifactsDir = path.join(testDir, "artifacts");
+    const logger = new Logger("Phase9Test", "error", "pretty");
+    db = new Database(testDbPath, logger);
+    const opencode = new OpenCodeClient("nonexistent_service.json", logger);
 
   // -------------------------------------------------------------
   // Test 1: ArtifactManager Creation and Storage
@@ -251,23 +255,31 @@ async function runPhase9Tests() {
     })
   );
 
-  const jarvis = new JarvisCore(coreConfigPath);
-  assert(jarvis.artifacts instanceof ArtifactManager, "jarvis.artifacts is instance of ArtifactManager");
-  assert(jarvis.pulse instanceof ProactivePulse, "jarvis.pulse is instance of ProactivePulse");
-  assert(jarvis.pulse.isEnabled() === false, "jarvis.pulse is disabled by default in JarvisCore");
+    jarvis = new JarvisCore(coreConfigPath);
+    assert(jarvis.artifacts instanceof ArtifactManager, "jarvis.artifacts is instance of ArtifactManager");
+    assert(jarvis.pulse instanceof ProactivePulse, "jarvis.pulse is instance of ProactivePulse");
+    assert(jarvis.pulse.isEnabled() === false, "jarvis.pulse is disabled by default in JarvisCore");
 
-  // Create an artifact via core
-  const coreArt = jarvis.artifacts.createArtifact({
-    runId: "core_run_1",
-    sessionId: "core_ses_1",
-    type: "document",
-    description: "Core test document",
-    content: "Jarvis Core Artifact Content",
-  });
-  assert(coreArt.id.startsWith("art_"), "Core artifact created successfully");
-
-  jarvis.shutdown();
-  db.close();
+    // Create an artifact via core
+    const coreArt = jarvis.artifacts.createArtifact({
+      runId: "core_run_1",
+      sessionId: "core_ses_1",
+      type: "document",
+      description: "Core test document",
+      content: "Jarvis Core Artifact Content",
+    });
+    assert(coreArt.id.startsWith("art_"), "Core artifact created successfully");
+  } finally {
+    try {
+      if (jarvis) jarvis.shutdown();
+    } catch {}
+    try {
+      if (db) db.close();
+    } catch {}
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   // -------------------------------------------------------------
   // Summary

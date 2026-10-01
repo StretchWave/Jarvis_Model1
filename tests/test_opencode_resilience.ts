@@ -30,9 +30,18 @@ async function runResilienceTests() {
   console.log("   OPENCODE RESILIENCE, PERSISTENCE & HEALTH SUITE     ");
   console.log("=======================================================\n");
 
-  const testDir = path.join(process.cwd(), `.test_resilience_${Date.now()}`);
+  const testDir = path.join(process.cwd(), ".test_resilience");
+  if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
   const logger = new Logger("TestResilience", "error");
+
+  let healthServer: http.Server | undefined;
+  let sseHangServer: http.Server | undefined;
+  let startupServer: http.Server | undefined;
+  let startupCore: JarvisCore | undefined;
+  let coreAlreadyCorrect: JarvisCore | undefined;
+
+  try {
 
   // -------------------------------------------------------------
   // Test 1: Configuration Persistence (Requirement 6)
@@ -93,7 +102,7 @@ async function runResilienceTests() {
   let serverMode: "standard_health" | "fallback_info" | "unhealthy" = "standard_health";
 
   const healthServerPort = 39818;
-  const healthServer = http.createServer((req, res) => {
+    healthServer = http.createServer((req, res) => {
     if (req.url === "/api/health" && req.method === "GET") {
       healthHit = true;
       if (serverMode === "standard_health") {
@@ -176,7 +185,7 @@ async function runResilienceTests() {
   // Hang the SSE connection at HTTP level
   let sseHanging = true;
   const sseHangPort = 39819;
-  const sseHangServer = http.createServer((req, res) => {
+    sseHangServer = http.createServer((req, res) => {
     if (req.url === "/api/health" || req.url === "/api/info") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, version: "2.0.15", pid: 8888 }));
@@ -249,7 +258,7 @@ async function runResilienceTests() {
   let failSwitchModel = false;
 
   const startupServerPort = 39820;
-  const startupServer = http.createServer((req, res) => {
+    startupServer = http.createServer((req, res) => {
     if ((req.url === "/api/health" || req.url === "/api/info") && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, version: "2.0.15", pid: 7777 }));
@@ -329,7 +338,7 @@ async function runResilienceTests() {
   }));
 
   // Reconciles model and agent at startup
-  const startupCore = new JarvisCore(coreConfigPath);
+    startupCore = new JarvisCore(coreConfigPath);
   await startupCore.initialize();
   assert(switchModelCalled === true, "Startup reconciled model when mismatched");
   assert(switchAgentCalled === true, "Startup reconciled agent when mismatched");
@@ -338,19 +347,32 @@ async function runResilienceTests() {
   // Test already correct: does not overwrite needlessly
   switchModelCalled = false;
   switchAgentCalled = false;
-  const coreAlreadyCorrect = new JarvisCore(coreConfigPath);
+    coreAlreadyCorrect = new JarvisCore(coreConfigPath);
   await coreAlreadyCorrect.initialize();
   assert(switchModelCalled === false, "Startup does not switch model when already matching");
   assert(switchAgentCalled === false, "Startup does not switch agent when already matching");
   coreAlreadyCorrect.shutdown();
 
-  // Cleanup
-  await new Promise<void>((r) => healthServer.close(() => r()));
-  await new Promise<void>((r) => sseHangServer.close(() => r()));
-  await new Promise<void>((r) => startupServer.close(() => r()));
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    try {
+      if (startupCore) startupCore.shutdown();
+    } catch {}
+    try {
+      if (coreAlreadyCorrect) coreAlreadyCorrect.shutdown();
+    } catch {}
+    if (healthServer) {
+      await new Promise<void>((r) => healthServer!.close(() => r()));
+    }
+    if (sseHangServer) {
+      await new Promise<void>((r) => sseHangServer!.close(() => r()));
+    }
+    if (startupServer) {
+      await new Promise<void>((r) => startupServer!.close(() => r()));
+    }
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`Resilience Tests Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);

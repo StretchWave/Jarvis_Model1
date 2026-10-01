@@ -41,82 +41,90 @@ async function runPhase7() {
   const cfg = getDefaultConfig();
 
   const db = new Database(testDbPath, logger);
-  const client = new OpenCodeClient(cfg.opencode.serviceFile, logger);
-  const health = await client.health();
-  if (health.version && compareSemver(health.version, "2.1.0") < 0) {
-    client.legacyProtocolMode = true;
-  }
-  const sessionMgr = new SessionManager(db, client, logger);
-  const memoryMgr = new MemoryManager(db, logger);
-
-  // 1. Setup Project & Context
-  console.log("▶ Step 1: Project & Context Setup");
-  const mockReppDir = path.join(testDataDir, "REPP");
-  fs.mkdirSync(path.join(mockReppDir, "Content"), { recursive: true });
-  fs.writeFileSync(path.join(mockReppDir, "REPP.uproject"), JSON.stringify({ FileVersion: 3 }));
-  fs.writeFileSync(path.join(mockReppDir, "Content", "ABP_FP_Weapon.txt"), "BlendSpace 1D RootMotion: Enabled");
-
-  memoryMgr.setProject({
-    id: "repp",
-    name: "REPP Game Project",
-    path: mockReppDir,
-    description: "Tactical shooter in Unreal Engine",
-  });
-  memoryMgr.remember({
-    category: "project",
-    key: "Animation State",
-    content: "Weapon animation uses blend spaces and root motion in " + mockReppDir,
-    importance: 5,
-    projectId: "repp",
-  });
-  assert(true, "Stored REPP project metadata and animation fact in memory");
-
-  // 2. Initialize Jarvis Session
-  console.log("\n▶ Step 2: Initialize Logical Session");
-  const session = await sessionMgr.createSession({
-    title: "REPP Animation Inspection",
-    category: "coding",
-    projectId: "repp",
-    createOpenCodeSession: true,
-  });
-  assert(typeof session.opencode_session_id === "string", `Paired with OpenCode session ${session.opencode_session_id}`);
-
-  // 3. Dispatch Agent Task
-  console.log("\n▶ Step 3: Execute Agent Task with Context Injection");
-  const dispatcher = new AgentDispatcher(sessionMgr, memoryMgr, client, logger, cfg.models.agent);
-
-  const events: AgentEvent[] = [];
-  let finalResult = "";
-
-  for await (const ev of dispatcher.executeTask(
-    `Inspect the weapon animation state in ${mockReppDir} and confirm the blend spaces settings.`,
-    session.id,
-    "repp"
-  )) {
-    events.push(ev);
-    if (ev.type === "progress") {
-      console.log(`  \x1b[36m[Progress]\x1b[0m ${ev.message}`);
-    } else if (ev.type === "done") {
-      finalResult = ev.fullText;
-    }
-  }
-
-  // 4. Verify Progress Events
-  console.log("\n▶ Step 4: Verify Streaming Progress & Safe Output");
-  const progressEvents = events.filter((e) => e.type === "progress");
-  assert(progressEvents.length >= 2, `Emitted ${progressEvents.length} safe progress indicators to UI`);
-  assert(events.some((e) => e.type === "tool_activity"), "Emitted tool activity completion event");
-  assert(events.some((e) => e.type === "done"), "Received task completion event");
-
-  // 5. Cleanup
-  if (session.opencode_session_id) {
-    await client.deleteSession(session.opencode_session_id);
-  }
-  db.close();
+  let opencodeSessionId: string | null = null;
 
   try {
-    fs.rmSync(testDataDir, { recursive: true, force: true });
-  } catch {}
+    const client = new OpenCodeClient(cfg.opencode.serviceFile, logger);
+    const health = await client.health();
+    if (health.version && compareSemver(health.version, "2.1.0") < 0) {
+      client.legacyProtocolMode = true;
+    }
+    const sessionMgr = new SessionManager(db, client, logger);
+    const memoryMgr = new MemoryManager(db, logger);
+
+    // 1. Setup Project & Context
+    console.log("▶ Step 1: Project & Context Setup");
+    const mockReppDir = path.join(testDataDir, "REPP");
+    fs.mkdirSync(path.join(mockReppDir, "Content"), { recursive: true });
+    fs.writeFileSync(path.join(mockReppDir, "REPP.uproject"), JSON.stringify({ FileVersion: 3 }));
+    fs.writeFileSync(path.join(mockReppDir, "Content", "ABP_FP_Weapon.txt"), "BlendSpace 1D RootMotion: Enabled");
+
+    memoryMgr.setProject({
+      id: "repp",
+      name: "REPP Game Project",
+      path: mockReppDir,
+      description: "Tactical shooter in Unreal Engine",
+    });
+    memoryMgr.remember({
+      category: "project",
+      key: "Animation State",
+      content: "Weapon animation uses blend spaces and root motion in " + mockReppDir,
+      importance: 5,
+      projectId: "repp",
+    });
+    assert(true, "Stored REPP project metadata and animation fact in memory");
+
+    // 2. Initialize Jarvis Session
+    console.log("\n▶ Step 2: Initialize Logical Session");
+    const session = await sessionMgr.createSession({
+      title: "REPP Animation Inspection",
+      category: "coding",
+      projectId: "repp",
+      createOpenCodeSession: true,
+    });
+    opencodeSessionId = session.opencode_session_id || null;
+    assert(typeof session.opencode_session_id === "string", `Paired with OpenCode session ${session.opencode_session_id}`);
+
+    // 3. Dispatch Agent Task
+    console.log("\n▶ Step 3: Execute Agent Task with Context Injection");
+    const dispatcher = new AgentDispatcher(sessionMgr, memoryMgr, client, logger, cfg.models.agent);
+
+    const events: AgentEvent[] = [];
+    let finalResult = "";
+
+    for await (const ev of dispatcher.executeTask(
+      `Inspect the weapon animation state in ${mockReppDir} and confirm the blend spaces settings.`,
+      session.id,
+      "repp"
+    )) {
+      events.push(ev);
+      if (ev.type === "progress") {
+        console.log(`  \x1b[36m[Progress]\x1b[0m ${ev.message}`);
+      } else if (ev.type === "done") {
+        finalResult = ev.fullText;
+      }
+    }
+
+    // 4. Verify Progress Events
+    console.log("\n▶ Step 4: Verify Streaming Progress & Safe Output");
+    const progressEvents = events.filter((e) => e.type === "progress");
+    assert(progressEvents.length >= 2, `Emitted ${progressEvents.length} safe progress indicators to UI`);
+    assert(events.some((e) => e.type === "tool_activity"), "Emitted tool activity completion event");
+    assert(events.some((e) => e.type === "done"), "Received task completion event");
+  } finally {
+    if (opencodeSessionId) {
+      try {
+        const client = new OpenCodeClient(cfg.opencode.serviceFile, logger);
+        await client.deleteSession(opencodeSessionId);
+      } catch {}
+    }
+    try {
+      db.close();
+    } catch {}
+    try {
+      fs.rmSync(testDataDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`  TOTAL: ${totalTests}  |  PASSED: ${passedTests}  |  FAILED: ${failedTests}`);

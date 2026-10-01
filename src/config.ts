@@ -131,7 +131,9 @@ export function getDefaultConfig(): JarvisConfig {
       cliPath: detectedCli,
       spawnIfDown: true,
       connectTimeoutMs: 5000,
-      legacyProtocolMode: process.env.OPENCODE_LEGACY_PROTOCOL_MODE === "true",
+      legacyProtocolMode: process.env.OPENCODE_LEGACY_PROTOCOL_MODE !== undefined 
+        ? process.env.OPENCODE_LEGACY_PROTOCOL_MODE === "true" 
+        : undefined,
     },
     models: {
       fast: {
@@ -206,7 +208,9 @@ export function loadConfig(configPath?: string): JarvisConfig {
           ...(userCfg.opencode || {}),
           legacyProtocolMode: userCfg.opencode?.legacyProtocolMode !== undefined
             ? Boolean(userCfg.opencode.legacyProtocolMode)
-            : (process.env.OPENCODE_LEGACY_PROTOCOL_MODE === "true"),
+            : (process.env.OPENCODE_LEGACY_PROTOCOL_MODE !== undefined 
+                ? process.env.OPENCODE_LEGACY_PROTOCOL_MODE === "true" 
+                : undefined),
         },
         models: {
           fast: { ...defaults.models.fast, ...(userCfg.models?.fast || {}) },
@@ -224,7 +228,7 @@ export function loadConfig(configPath?: string): JarvisConfig {
       // Compatibility: if user config provided fastModel (e.g. tests or legacy config)
       if (userCfg.fastModel) {
         loaded.fastModel = userCfg.fastModel;
-        if (userCfg.fastModel.provider === "mock" || userCfg.fastModel.provider === "openai-compatible" || userCfg.fastModel.provider === "unconfigured") {
+        if (!userCfg.fallbackProvider && (userCfg.fastModel.provider === "mock" || userCfg.fastModel.provider === "openai-compatible" || userCfg.fastModel.provider === "unconfigured")) {
           loaded.fallbackProvider = {
             enabled: true,
             provider: userCfg.fastModel.provider,

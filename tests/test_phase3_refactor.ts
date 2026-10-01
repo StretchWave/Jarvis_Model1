@@ -33,10 +33,14 @@ async function runPhase3RefactorTests() {
   if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
 
-  const dbPath = path.join(testDir, "test_context.db");
-  const logger = new Logger("Phase3Refactor", "error");
-  const db = new Database(dbPath, logger);
-  const contextMgr = new ConversationContextManager(db, logger);
+  let db: Database | undefined;
+  let core: JarvisCore | undefined;
+
+  try {
+    const dbPath = path.join(testDir, "test_context.db");
+    const logger = new Logger("Phase3Refactor", "error");
+    db = new Database(dbPath, logger);
+    const contextMgr = new ConversationContextManager(db, logger);
 
   // -----------------------------------------------------------------
   // 1. Entity and Topic Extraction
@@ -119,33 +123,40 @@ async function runPhase3RefactorTests() {
   // -----------------------------------------------------------------
   console.log("\n▶ Group 6: End-to-End JarvisCore Multi-Turn Context Retention");
 
-  process.env.JARVIS_FAST_PROVIDER = "mock";
-  const core = new JarvisCore();
-  await core.initialize();
+    process.env.JARVIS_FAST_PROVIDER = "mock";
+    core = new JarvisCore();
+    await core.initialize();
 
-  const coreSession = await core.sessionMgr.createSession({
-    title: "MiMo Evaluation",
-    category: "general",
-  });
+    const coreSession = await core.sessionMgr.createSession({
+      title: "MiMo Evaluation",
+      category: "general",
+    });
 
-  // Turn 1: Introduce topic
-  let turn1Reply = "";
-  for await (const ev of core.processInput("I'm thinking about using MiMo for Jarvis.", coreSession.id)) {
-    if (ev.type === "token") turn1Reply += ev.text;
+    // Turn 1: Introduce topic
+    let turn1Reply = "";
+    for await (const ev of core.processInput("I'm thinking about using MiMo for Jarvis.", coreSession.id)) {
+      if (ev.type === "token") turn1Reply += ev.text;
+    }
+    assert(turn1Reply.length > 0, "Turn 1 returns response from FAST path");
+
+    // Turn 2: Follow-up with pronoun "it"
+    let turn2Reply = "";
+    for await (const ev of core.processInput("Is it good enough?", coreSession.id)) {
+      if (ev.type === "token") turn2Reply += ev.text;
+    }
+    assert(turn2Reply.toLowerCase().includes("mimo"), `Turn 2 understands context and references MiMo: "${turn2Reply}"`);
+  } finally {
+    try {
+      if (db) db.close();
+    } catch {}
+    try {
+      if (core) core.shutdown();
+    } catch {}
+    delete process.env.JARVIS_FAST_PROVIDER;
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
   }
-  assert(turn1Reply.length > 0, "Turn 1 returns response from FAST path");
-
-  // Turn 2: Follow-up with pronoun "it"
-  let turn2Reply = "";
-  for await (const ev of core.processInput("Is it good enough?", coreSession.id)) {
-    if (ev.type === "token") turn2Reply += ev.text;
-  }
-  assert(turn2Reply.toLowerCase().includes("mimo"), `Turn 2 understands context and references MiMo: "${turn2Reply}"`);
-
-  // Cleanup
-  db.close();
-  core.db.close();
-  delete process.env.JARVIS_FAST_PROVIDER;
 
   // -----------------------------------------------------------------
   // Summary

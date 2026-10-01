@@ -28,7 +28,8 @@ async function runCancellationTests() {
   console.log("       OPENCODE STREAM CANCELLATION TEST SUITE         ");
   console.log("=======================================================\n");
 
-  const testDir = path.join(process.cwd(), `.test_cancel_${Date.now()}`);
+  const testDir = path.join(process.cwd(), ".test_cancel");
+  if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
   const logger = new Logger("TestCancellation", "error");
 
@@ -38,7 +39,10 @@ async function runCancellationTests() {
   const testSession = "ses_cancel_101";
 
   const mockPort = 39830;
-  const mockServer = http.createServer((req, res) => {
+  let mockServer: http.Server | undefined;
+
+  try {
+    mockServer = http.createServer((req, res) => {
     if (req.url === "/api/info" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, version: "2.0.15", pid: 7777 }));
@@ -172,11 +176,14 @@ async function runCancellationTests() {
   assert(disconnectedEventCaught === true, "Simulated sudden socket destruction by daemon");
   unsub4();
 
-  // Cleanup
-  await new Promise<void>((r) => mockServer.close(() => r()));
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    if (mockServer) {
+      await new Promise<void>((r) => mockServer!.close(() => r()));
+    }
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`Cancellation Tests Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);

@@ -9,7 +9,7 @@
  */
 
 import path from "node:path";
-import { loadConfig, saveConfig, type JarvisConfig } from "./config.ts";
+import { loadConfig, saveConfig, compareSemver, type JarvisConfig } from "./config.ts";
 import { Logger, rootLogger } from "./logger.ts";
 import { Database } from "./database.ts";
 import { Router, type RoutingDecision } from "./router.ts";
@@ -124,6 +124,14 @@ export class JarvisCore {
     if (ocHealth.ok) {
       this.logger.info(`Connected to OpenCode daemon at ${ocHealth.url} (version: ${ocHealth.version}, pid: ${ocHealth.pid})`);
 
+      if (this.config.opencode.legacyProtocolMode === undefined && ocHealth.version && !this.config.opencode.disableGlobalDiscovery) {
+        const isLegacy = compareSemver(ocHealth.version, "2.1.0") < 0;
+        if (isLegacy) {
+          this.logger.info(`Live OpenCode daemon version ${ocHealth.version} (< 2.1.0) detected; activating legacy unnested prompt mode.`);
+          this.opencode.legacyProtocolMode = true;
+        }
+      }
+
       // 1. Validate configured OpenCode model profiles
       try {
         const availableModels = await this.opencode.listModels();
@@ -228,8 +236,11 @@ export class JarvisCore {
 
   public updateModels(
     models: { fast?: any; agent?: any; agentWeight?: number; creativityWeight?: number },
-    persist: boolean = false
+    persist: boolean = true
   ): void {
+    if (!persist) {
+      return;
+    }
     if (models.fast) {
       this.config.models.fast = { ...this.config.models.fast, ...models.fast };
       this.fastModel = createModelExecutor({
@@ -258,14 +269,12 @@ export class JarvisCore {
       this.logger.info(`Updated router agent weight to ${models.agentWeight}`);
     }
 
-    if (persist) {
-      try {
-        saveConfig(this.config, this.configPath);
-        this.logger.info(`Persisted configuration to ${this.configPath}`);
-      } catch (err: any) {
-        this.logger.error(`Failed to persist configuration to ${this.configPath}: ${err.message}`);
-        throw err;
-      }
+    try {
+      saveConfig(this.config, this.configPath);
+      this.logger.info(`Persisted configuration to ${this.configPath}`);
+    } catch (err: any) {
+      this.logger.error(`Failed to persist configuration to ${this.configPath}: ${err.message}`);
+      throw err;
     }
   }
 

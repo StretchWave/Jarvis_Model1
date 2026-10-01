@@ -13,7 +13,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { JarvisCore } from "../core.ts";
 import { Logger } from "../logger.ts";
-import { OpenCodeError, modelSupportsVariant } from "../opencode_client.ts";
+import { OpenCodeError, modelSupportsVariant, getModelCostTier } from "../opencode_client.ts";
 
 export class JarvisServer {
   private core: JarvisCore;
@@ -139,15 +139,47 @@ export class JarvisServer {
           return;
         }
 
+        // GET /api/session/:id - Query verified active session state
+        const sessionDetailMatch = url.pathname.match(/^\/api\/session\/([^/]+)$/);
+        if (sessionDetailMatch && req.method === "GET") {
+          const sessionId = decodeURIComponent(sessionDetailMatch[1]);
+          const session = this.core.db.getSession(sessionId);
+          if (!session) {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: `Session "${sessionId}" not found` }));
+            return;
+          }
+          let ocSession: any = null;
+          try {
+            const ocSessionId = await this.core.sessionMgr.ensureOpenCodeSession(sessionId);
+            ocSession = await this.core.opencode.getSession(ocSessionId);
+          } catch (err: any) {
+            this.logger.warn(`Could not fetch OpenCode session for ${sessionId}: ${err.message}`);
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            session,
+            opencodeSession: ocSession,
+            activeModel: ocSession?.model || ocSession?.data?.model || null,
+            activeAgent: ocSession?.agent || ocSession?.data?.agent || null,
+            configuredModels: this.core.config.models,
+          }));
+          return;
+        }
+
         // GET /api/models
         if (url.pathname === "/api/models" && req.method === "GET") {
           try {
             const catalog = await this.core.opencode.listModels();
             const agents = await this.core.opencode.listAgents({ primaryOnly: true });
+            const enrichedCatalog = catalog.map((m: any) => ({
+              ...m,
+              costTier: getModelCostTier(m),
+            }));
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({
               configured: this.core.config.models,
-              catalog,
+              catalog: enrichedCatalog,
               agents,
             }));
           } catch (err: any) {
@@ -251,12 +283,15 @@ export class JarvisServer {
                 }
               }
 
-              this.core.updateModels({ fast, agent, agentWeight }, persist !== false);
+              const shouldPersist = persist !== false;
+              if (shouldPersist) {
+                this.core.updateModels({ fast, agent, agentWeight }, true);
+              }
               res.writeHead(200, { "Content-Type": "application/json" });
               res.end(JSON.stringify({
                 success: true,
                 models: this.core.config.models,
-                persisted: persist !== false,
+                persisted: shouldPersist,
                 session: sessionData,
               }));
             } catch (err: any) {

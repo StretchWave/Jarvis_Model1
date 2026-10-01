@@ -36,12 +36,16 @@ async function runPhase4RefactorTests() {
   if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
 
-  const logger = new Logger("Phase4Refactor", "error");
-  const db = new Database(path.join(testDir, "p4_test.db"), logger);
-  const client = new OpenCodeClient("dummy_service.json", logger);
-  const sessionMgr = new SessionManager(db, client, logger);
-  const memoryMgr = new MemoryManager(db, logger);
-  const dispatcher = new AgentDispatcher(sessionMgr, memoryMgr, client, logger);
+  let db: Database | undefined;
+  let mockServer: http.Server | undefined;
+
+  try {
+    const logger = new Logger("Phase4Refactor", "error");
+    db = new Database(path.join(testDir, "p4_test.db"), logger);
+    const client = new OpenCodeClient("dummy_service.json", logger);
+    const sessionMgr = new SessionManager(db, client, logger);
+    const memoryMgr = new MemoryManager(db, logger);
+    const dispatcher = new AgentDispatcher(sessionMgr, memoryMgr, client, logger);
 
   // -----------------------------------------------------------------
   // 1. Safe Event Translation Audit
@@ -97,7 +101,7 @@ async function runPhase4RefactorTests() {
   console.log("\n▶ Group 2: End-to-End Live Event Stream Dispatch");
 
   let sseClientRes: http.ServerResponse | null = null;
-  const mockServer = http.createServer((req, res) => {
+  mockServer = http.createServer((req, res) => {
     if (req.url === "/api/info") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ version: "2.0.15", pid: 9999 }));
@@ -256,9 +260,17 @@ async function runPhase4RefactorTests() {
   assert(finalStreamText.includes("blend space is configured correctly"), "Received final clean assistant text without CoT leak");
   assert(!finalStreamText.includes("Internal thinking"), "Suppressed internal chain-of-thought tokens from final output");
 
-  // Cleanup
-  await new Promise<void>((resolve) => mockServer.close(() => resolve()));
-  db.close();
+  } finally {
+    if (mockServer) {
+      await new Promise<void>((resolve) => mockServer!.close(() => resolve()));
+    }
+    try {
+      if (db) db.close();
+    } catch {}
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   // -----------------------------------------------------------------
   // Summary

@@ -39,6 +39,9 @@ async function runPhase2() {
   const testDbPath = path.join(testDataDir, "phase2_jarvis.db");
   const logger = new Logger("Phase2Test", "info");
   const cfg = getDefaultConfig();
+  let db: Database | undefined;
+
+  try {
 
   // 1. Connection & Health
   console.log("▶ Step 1: OpenCode Local Server Connection");
@@ -52,7 +55,7 @@ async function runPhase2() {
 
   // 2. Session Creation & Mapping
   console.log("\n▶ Step 2: Session Creation & Logical Mapping");
-  const db = new Database(testDbPath, logger);
+    db = new Database(testDbPath, logger);
   const sessionMgr = new SessionManager(db, client, logger);
 
   const jarvisSession = await sessionMgr.createSession({
@@ -112,11 +115,14 @@ async function runPhase2() {
   const deleted1 = await client.deleteSession(ocSessionId);
   const deleted2 = await client.deleteSession(recoveredId);
   assert(deleted1 || deleted2, "Cleaned up temporary test sessions from OpenCode daemon");
-  db.close();
-
-  try {
-    fs.rmSync(testDataDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    try {
+      if (db) db.close();
+    } catch {}
+    try {
+      fs.rmSync(testDataDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`  TOTAL: ${totalTests}  |  PASSED: ${passedTests}  |  FAILED: ${failedTests}`);

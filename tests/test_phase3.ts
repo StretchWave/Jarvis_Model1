@@ -35,8 +35,11 @@ async function runPhase3() {
 
   const testDbPath = path.join(testDataDir, "phase3_jarvis.db");
   const logger = new Logger("Phase3Test", "error");
-  const db = new Database(testDbPath, logger);
-  const perms = new PermissionManager(db, logger);
+  let db: Database | undefined;
+
+  try {
+    db = new Database(testDbPath, logger);
+    const perms = new PermissionManager(db, logger);
 
   // 1. Time & Date
   console.log("▶ Group 1: Time and Date Tools");
@@ -100,10 +103,14 @@ async function runPhase3() {
   perms.logAudit("write_file", "CONFIRM", "Wrote new config file", "user_prompt");
   assert(true, "Audited actions logged to SQLite");
 
-  db.close();
-  try {
-    fs.rmSync(testDataDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    try {
+      if (db) db.close();
+    } catch {}
+    try {
+      fs.rmSync(testDataDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`  TOTAL: ${totalTests}  |  PASSED: ${passedTests}  |  FAILED: ${failedTests}`);

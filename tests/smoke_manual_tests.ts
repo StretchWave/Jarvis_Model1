@@ -50,6 +50,13 @@ async function runSmokeTests() {
   if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
 
+  let jarvis: JarvisCore | undefined;
+  let altJarvis: JarvisCore | undefined;
+  let restartedJarvis: JarvisCore | undefined;
+  let deadJarvis: JarvisCore | undefined;
+
+  try {
+
   const testDb = path.join(testDir, "smoke.db");
   const testConfig = path.join(testDir, "jarvis.config.json");
 
@@ -88,7 +95,7 @@ async function runSmokeTests() {
     })
   );
 
-  let jarvis = new JarvisCore(testConfig);
+    jarvis = new JarvisCore(testConfig);
   await jarvis.initialize();
 
   const generalSession = await jarvis.sessionMgr.getOrCreateActiveSession("general");
@@ -168,7 +175,7 @@ async function runSmokeTests() {
     })
   );
 
-  const altJarvis = new JarvisCore(altModelConfig);
+    altJarvis = new JarvisCore(altModelConfig);
   await altJarvis.initialize();
   const activeAltSession = await altJarvis.sessionMgr.getOrCreateActiveSession("general");
   const altOcId = await altJarvis.sessionMgr.ensureOpenCodeSession(activeAltSession.id);
@@ -195,7 +202,7 @@ async function runSmokeTests() {
   jarvis.shutdown(); // Stop original instance
 
   // Start fresh instance with same DB
-  const restartedJarvis = new JarvisCore(testConfig);
+    restartedJarvis = new JarvisCore(testConfig);
   await restartedJarvis.initialize();
 
   const resumedSession = await restartedJarvis.sessionMgr.getOrCreateActiveSession("general");
@@ -228,7 +235,7 @@ async function runSmokeTests() {
     })
   );
 
-  const deadJarvis = new JarvisCore(deadConfig);
+    deadJarvis = new JarvisCore(deadConfig);
   const startTime = Date.now();
   const deadEvents: JarvisEvent[] = [];
   for await (const ev of deadJarvis.processInput("hello?")) {
@@ -240,9 +247,23 @@ async function runSmokeTests() {
   assert(deadError !== undefined, "Reported explicit error when OpenCode daemon is down", (deadError as any)?.error);
   assert(duration < 10000, `Returned immediately (${duration}ms) rather than hanging indefinitely`);
 
-  deadJarvis.shutdown();
-  restartedJarvis.shutdown();
-  fs.rmSync(testDir, { recursive: true, force: true });
+  } finally {
+    try {
+      if (deadJarvis) deadJarvis.shutdown();
+    } catch {}
+    try {
+      if (restartedJarvis) restartedJarvis.shutdown();
+    } catch {}
+    try {
+      if (altJarvis) altJarvis.shutdown();
+    } catch {}
+    try {
+      if (jarvis) jarvis.shutdown();
+    } catch {}
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=================================================================");
   if (failedTests === 0) {

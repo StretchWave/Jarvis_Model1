@@ -58,24 +58,99 @@ export interface OpenCodeModelInfo {
 
 /**
  * Reusable helper to validate whether a model catalog entry supports a requested variant.
- * Supports string-style variants ("high") and object-style variants ({ id: "high" }).
+ * Implements strict variant semantics:
+ * - No variant requested or "default" -> true
+ * - Model explicitly supports arbitrary variants -> true
+ * - Model has no declared variants -> false (for non-default variant)
+ * - Declared variant in catalog -> true
+ * - Undeclared variant -> false
  */
 export function modelSupportsVariant(model: any, variant?: string): boolean {
   if (!variant || variant === "default") {
     return true;
   }
-  const variants = model?.variants;
-  if (!variants || !Array.isArray(variants) || variants.length === 0) {
+  if (model?.supportsArbitraryVariants === true) {
     return true;
   }
+  const variants = model?.variants;
+  if (!variants || !Array.isArray(variants) || variants.length === 0) {
+    return false;
+  }
   for (const v of variants) {
+    if (v === "*") return true;
     if (typeof v === "string") {
-      if (v === variant) return true;
+      if (v.toLowerCase() === variant.toLowerCase()) return true;
     } else if (v && typeof v === "object" && typeof v.id === "string") {
-      if (v.id === variant) return true;
+      if (v.id.toLowerCase() === variant.toLowerCase()) return true;
     }
   }
   return false;
+}
+
+export type ModelCostTier = "FREE" | "PAID" | "UNKNOWN";
+
+export interface ModelCostClassification {
+  tier: ModelCostTier;
+  label: string;
+  description: string;
+}
+
+/**
+ * Classifies model cost from actual OpenCode catalog metadata.
+ * Does NOT assume opencode provider is always free or cloud is always paid.
+ * Returns UNKNOWN / "Cost information unavailable" when metadata is insufficient.
+ */
+export function getModelCostTier(model: any): ModelCostClassification {
+  if (!model) {
+    return { tier: "UNKNOWN", label: "Unknown", description: "Cost information unavailable" };
+  }
+
+  // 1. Explicit cost / pricing in metadata
+  const cost = model.cost || model.pricing;
+  if (cost && typeof cost === "object") {
+    const inputCost = typeof cost.input === "number"
+      ? cost.input
+      : (typeof cost.prompt === "number" ? cost.prompt : (typeof cost.read === "number" ? cost.read : undefined));
+    const outputCost = typeof cost.output === "number"
+      ? cost.output
+      : (typeof cost.completion === "number" ? cost.completion : (typeof cost.write === "number" ? cost.write : undefined));
+
+    if (inputCost === 0 && (outputCost === 0 || outputCost === undefined)) {
+      return { tier: "FREE", label: "Free", description: "Zero-cost model" };
+    }
+    if ((inputCost !== undefined && inputCost > 0) || (outputCost !== undefined && outputCost > 0)) {
+      return { tier: "PAID", label: "Paid", description: "Usage billed per token" };
+    }
+  }
+
+  // 2. Explicit boolean free flag
+  if (typeof model.free === "boolean") {
+    return model.free
+      ? { tier: "FREE", label: "Free", description: "Free Tier" }
+      : { tier: "PAID", label: "Paid", description: "Paid model" };
+  }
+
+  // 3. Explicit tier string in metadata
+  if (typeof model.tier === "string") {
+    const t = model.tier.toLowerCase();
+    if (t === "free") return { tier: "FREE", label: "Free", description: "Free Tier" };
+    if (t === "paid" || t === "premium" || t === "pro") return { tier: "PAID", label: "Paid", description: "Paid model" };
+  }
+
+  // 4. Upstream tags in catalog
+  if (Array.isArray(model.tags)) {
+    const tagsLower = model.tags.map((tag: any) => String(tag).toLowerCase());
+    if (tagsLower.includes("free")) {
+      return { tier: "FREE", label: "Free", description: "Free Tier" };
+    }
+    if (tagsLower.includes("paid") || tagsLower.includes("commercial")) {
+      return { tier: "PAID", label: "Paid", description: "Paid model" };
+    }
+  }
+
+  // 5. Default when OpenCode does not provide enough info:
+  // Show "Cost information unavailable" - do not invent pricing or assume free/local.
+  return { tier: "UNKNOWN", label: "Unknown", description: "Cost information unavailable" };
 }
 
 /**
@@ -576,6 +651,9 @@ export class OpenCodeClient {
         method: "GET",
         timeoutMs: this.connectTimeoutMs,
       });
+      if (this.serviceInfo && healthData?.version) {
+        this.serviceInfo.version = healthData.version;
+      }
       return {
         ok: true,
         url: this.serviceInfo.url,
@@ -603,6 +681,9 @@ export class OpenCodeClient {
           method: "GET",
           timeoutMs: this.connectTimeoutMs,
         });
+        if (this.serviceInfo && info?.version) {
+          this.serviceInfo.version = info.version;
+        }
         return {
           ok: true,
           url: this.serviceInfo.url,
@@ -1313,10 +1394,12 @@ export class OpenCodeClient {
       initialMessageCount = Array.isArray(initialMsgs) ? initialMsgs.length : 0;
     } catch {}
 
-    // Bounded message polling fallback loop (Part 1 Req 4)
+    // Bounded message polling fallback loop (Part 1 Req 3 & 4)
     let pollingInterval: NodeJS.Timeout | null = null;
+    const emittedPermissions = new Set<string>();
+
     if (!sseActive) {
-      this.logger.info(`Starting bounded message polling fallback loop for session ${sessionId}`);
+      this.logger.info(`Starting bounded message & permission polling fallback loop for session ${sessionId}`);
       let lastPolledTextLength = 0;
       const pollFreqMs = 250;
 
@@ -1339,6 +1422,31 @@ export class OpenCodeClient {
           return;
         }
 
+        // 1. Poll for pending permission requests during polling fallback
+        try {
+          const perms = await this.getSessionPermissions(sessionId);
+          if (Array.isArray(perms) && perms.length > 0) {
+            for (const p of perms) {
+              const pId = p.id || p.requestID || p.data?.id;
+              if (pId && !emittedPermissions.has(pId)) {
+                emittedPermissions.add(pId);
+                lastActivityTime = Date.now();
+                pushEvent({
+                  type: "permission_request",
+                  requestId: pId,
+                  sessionId,
+                  action: p.action || p.tool || "Tool execution",
+                  details: p.details || p.reason || `Permission required for ${p.action || "action"}`,
+                  resources: p.resources,
+                });
+              }
+            }
+          }
+        } catch (permErr: any) {
+          this.logger.debug(`Polling permissions error for session ${sessionId}:`, permErr);
+        }
+
+        // 2. Poll for message updates, token streaming, and completion evidence
         try {
           const msgs = await this.getMessages(sessionId);
           if (Array.isArray(msgs) && msgs.length > initialMessageCount) {
@@ -1368,11 +1476,36 @@ export class OpenCodeClient {
                 pushEvent({ type: "token", text: delta });
               }
 
+              // Tool progress indication in polled messages
+              const toolCalls = aMsg.toolCalls || aMsg.tool_calls || aMsg.calls;
+              if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+                for (const tc of toolCalls) {
+                  const tName = tc.name || tc.tool || "Tool";
+                  pushEvent({ type: "tool_activity", tool: tName, status: tc.status || "running" });
+                }
+              }
+
+              // Failure evidence
+              if (aMsg.status === "failed" || aMsg.status === "error" || aMsg.error) {
+                state = "failed";
+                const errStr = aMsg.error?.message || (typeof aMsg.error === "string" ? aMsg.error : "OpenCode execution failed");
+                executionError = errStr;
+                pushEvent({ type: "error", error: errStr });
+                if (pollingInterval) {
+                  clearInterval(pollingInterval);
+                  pollingInterval = null;
+                }
+                break;
+              }
+
+              // Genuine completion evidence (never complete prematurely!)
               const isFinished =
                 aMsg.status === "completed" ||
                 aMsg.status === "finished" ||
                 Boolean(aMsg.completed) ||
-                Boolean(aMsg.time?.completed);
+                Boolean(aMsg.time?.completed) ||
+                Boolean(aMsg.finishReason) ||
+                Boolean(aMsg.finish_reason);
 
               if (isFinished) {
                 state = "completed";
@@ -1395,37 +1528,16 @@ export class OpenCodeClient {
       // 4. Send canonical prompt
       state = "dispatching";
       const promptPromise = this.promptSession(sessionId, { text: prompt }, { signal: options?.signal });
-      promptPromise.then(async () => {
-        if (state === "dispatching") state = "running";
-        if (!sseActive && state !== "completed" && state !== "failed" && state !== "cancelled") {
-          try {
-            const msgs = await this.getMessages(sessionId);
-            const assistantMsg = [...msgs].reverse().find((m: any) => m.type === "assistant" || m.role === "assistant");
-            if (assistantMsg) {
-              let extracted = "";
-              if (Array.isArray(assistantMsg.content)) {
-                extracted = assistantMsg.content
-                  .filter((p: any) => p && (p.type === "text" || (!p.type && typeof p.text === "string")))
-                  .map((p: any) => p.text || "")
-                  .join("").trim();
-              } else if (typeof assistantMsg.content === "string") {
-                extracted = assistantMsg.content.trim();
-              }
-              if (extracted && extracted.length > accumulatedText.length) {
-                const delta = extracted.slice(accumulatedText.length);
-                accumulatedText = extracted;
-                pushEvent({ type: "token", text: delta });
-              }
-            }
-            state = "completed";
-            pushEvent({ type: "done", fullText: accumulatedText });
-          } catch {}
-        }
-      }).catch((err) => {
-        executionError = err.message;
-        state = "failed";
-        pushEvent({ type: "error", error: `Prompt dispatch failed: ${err.message}` });
-      });
+      promptPromise
+        .then(() => {
+          if (state === "dispatching") state = "running";
+          this.logger.debug(`Prompt accepted by OpenCode session ${sessionId}; awaiting stream or polling completion evidence.`);
+        })
+        .catch((err) => {
+          executionError = err.message;
+          state = "failed";
+          pushEvent({ type: "error", error: `Prompt dispatch failed: ${err.message}` });
+        });
 
       // 5. Stream events until completed, failed, or timed out
       const inactivityTimeoutMs = 180000; // 3-minute inactivity window for deep tool runs

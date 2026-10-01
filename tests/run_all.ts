@@ -63,6 +63,7 @@ const mockIntegrationSuites: SuiteInfo[] = [
   { file: "tests/test_opencode_resilience.ts", name: "OpenCode Persistence, Health Fallback & Timeout Resilience" },
   { file: "tests/test_final_acceptance.ts", name: "Final Mock Acceptance Verification" },
   { file: "tests/test_phase10_backend_fixes.ts", name: "Backend Protocol & Persistence Correctness" },
+  { file: "tests/test_phase11_state_correctness.ts", name: "State Correctness & Polling Fallback" },
 ];
 
 const liveIntegrationSuites: SuiteInfo[] = [

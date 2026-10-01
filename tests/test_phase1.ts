@@ -39,6 +39,9 @@ async function runTests() {
 
   const testDbPath = path.join(testDataDir, "test_jarvis.db");
   const logger = new Logger("TestPhase1", "error"); // Keep quiet during tests
+  let db: Database | null = null;
+
+  try {
 
   // -----------------------------------------------------------------
   // 1. Config & Defaults
@@ -66,7 +69,7 @@ async function runTests() {
   // 3. SQLite Database Layer
   // -----------------------------------------------------------------
   console.log("\n▶ Group 3: SQLite Persistent Database Layer");
-  const db = new Database(testDbPath, logger);
+  db = new Database(testDbPath, logger);
 
   // Session table
   const testSessionId = "jarvis_ses_001";
@@ -116,6 +119,7 @@ async function runTests() {
   });
   assert(true, "Successfully logged tool history and audit records");
   db.close();
+  db = null;
 
   // -----------------------------------------------------------------
   // 4. Intent & Complexity Router
@@ -202,10 +206,16 @@ async function runTests() {
   console.log(`  TOTAL: ${totalTests}  |  PASSED: ${passedTests}  |  FAILED: ${failedTests}`);
   console.log("=======================================================\n");
 
-  // Clean test dir
-  try {
-    fs.rmSync(testDataDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    if (db) {
+      try {
+        db.close();
+      } catch {}
+    }
+    try {
+      fs.rmSync(testDataDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   if (failedTests > 0) {
     process.exit(1);

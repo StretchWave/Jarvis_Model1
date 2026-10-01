@@ -30,15 +30,23 @@ async function runPermissionsTests() {
   console.log("       OPENCODE PERMISSION CONFIRMATION TEST SUITE     ");
   console.log("=======================================================\n");
 
-  const testDir = path.join(process.cwd(), `.test_perms_${Date.now()}`);
+  const testDir = path.join(process.cwd(), ".test_perms");
+  if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
   const logger = new Logger("TestPermissions", "error");
+
+  let mockServer: http.Server | undefined;
+  let e2eServer: http.Server | undefined;
+  let core: JarvisCore | undefined;
+  let e2eCore: JarvisCore | undefined;
 
   const repliesReceived: Array<{ requestId: string; reply: string; rawBody: any }> = [];
   const testSession = "ses_perm_999";
 
   const mockPort = 39820;
-  const mockServer = http.createServer((req, res) => {
+
+  try {
+    mockServer = http.createServer((req, res) => {
     if ((req.url === "/api/health" || req.url === "/api/info") && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, version: "2.0.15", pid: 6666 }));
@@ -130,7 +138,7 @@ async function runPermissionsTests() {
     logging: { level: "error", format: "pretty" },
   }));
 
-  const core = new JarvisCore(configPath);
+    core = new JarvisCore(configPath);
   await core.initialize();
 
   // -------------------------------------------------------------
@@ -236,7 +244,7 @@ async function runPermissionsTests() {
   let e2ePermissionReplyReceived: any = null;
   let executionResumedAfterReply = false;
 
-  const e2eServer = http.createServer((req, res) => {
+    e2eServer = http.createServer((req, res) => {
     if ((req.url === "/api/health" || req.url === "/api/info") && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, version: "2.0.15", pid: 7777 }));
@@ -377,7 +385,7 @@ async function runPermissionsTests() {
     },
   }));
 
-  const e2eCore = new JarvisCore(e2eConfigPath);
+    e2eCore = new JarvisCore(e2eConfigPath);
   await e2eCore.initialize();
 
   // Create logical session
@@ -432,14 +440,23 @@ async function runPermissionsTests() {
   assert(finalResponseText.includes("Deployment confirmed"), "Final response includes post-approval output");
   assert(e2eCore.getPendingPermissions().length === 0, "Pending permissions cleaned up after execution");
 
-  // Cleanup
-  core.shutdown();
-  e2eCore.shutdown();
-  await new Promise<void>((r) => mockServer.close(() => r()));
-  await new Promise<void>((r) => e2eServer.close(() => r()));
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    try {
+      if (core) core.shutdown();
+    } catch {}
+    try {
+      if (e2eCore) e2eCore.shutdown();
+    } catch {}
+    if (mockServer) {
+      await new Promise<void>((r) => mockServer!.close(() => r()));
+    }
+    if (e2eServer) {
+      await new Promise<void>((r) => e2eServer!.close(() => r()));
+    }
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`Permission Tests Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);

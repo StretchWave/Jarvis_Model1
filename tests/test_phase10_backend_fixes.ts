@@ -42,9 +42,15 @@ async function runPhase10Tests() {
   console.log("     JARVIS PHASE 10 BACKEND PROTOCOL & PERSISTENCE FIXES       ");
   console.log("=================================================================\n");
 
-  const testDir = path.join(process.cwd(), `.test_phase10_${Date.now()}`);
+  const testDir = path.join(process.cwd(), ".test_phase10");
+  if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
   const logger = new Logger("Phase10Test", "error");
+
+  let core: JarvisCore | undefined;
+  let server: JarvisServer | undefined;
+
+  try {
 
   // -------------------------------------------------------------------------
   // 1. SSE Parser: Chunk fragmentation & multiple events in single chunk
@@ -417,10 +423,10 @@ async function runPhase10Tests() {
     logging: { level: "error" },
   }));
 
-  const core = new JarvisCore(validConfigPath);
-  await core.initialize();
-  const server = new JarvisServer(core, { port: 31499, host: "127.0.0.1" });
-  await server.start();
+    core = new JarvisCore(validConfigPath);
+    await core.initialize();
+    server = new JarvisServer(core, { port: 31499, host: "127.0.0.1" });
+    await server.start();
 
   const testSession = await core.sessionMgr.createSession({ title: "UI Switch Test" });
 
@@ -472,12 +478,17 @@ async function runPhase10Tests() {
     "In-memory configured model updated to model-b"
   );
 
-  await server.stop();
-  core.shutdown();
-
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    try {
+      if (server) await server.stop();
+    } catch {}
+    try {
+      if (core) core.shutdown();
+    } catch {}
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=================================================================");
   console.log(`  PHASE 10 TEST REPORT: ${passedTests}/${totalTests} PASSED (${failedTests} FAILED)`);

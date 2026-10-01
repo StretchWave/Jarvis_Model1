@@ -37,11 +37,15 @@ async function runAcceptanceTests() {
   console.log("       JARVIS SECTION 21 MOCK ACCEPTANCE TEST SUITE    ");
   console.log("=======================================================\n");
 
-  const testDir = path.join(process.cwd(), `.test_acceptance_${Date.now()}`);
-  try {
-    if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+  const testDir = path.join(process.cwd(), ".test_acceptance");
+  if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
+
+  let jarvis: JarvisCore | undefined;
+  let restartedJarvis: JarvisCore | undefined;
+  let unconfiguredJarvis: JarvisCore | undefined;
+
+  try {
 
   const testDb = path.join(testDir, "acceptance.db");
 
@@ -74,7 +78,7 @@ async function runAcceptanceTests() {
     })
   );
 
-  let jarvis = new JarvisCore(configPath);
+    jarvis = new JarvisCore(configPath);
   await jarvis.initialize();
 
   // -------------------------------------------------------------
@@ -175,7 +179,7 @@ async function runAcceptanceTests() {
   jarvis.shutdown();
 
   // Create new instance pointing to same DB
-  const restartedJarvis = new JarvisCore(configPath);
+    restartedJarvis = new JarvisCore(configPath);
   await restartedJarvis.initialize();
 
   const persistedMemories = restartedJarvis.memoryMgr.recall("weapon recoil", "repp");
@@ -222,7 +226,7 @@ async function runAcceptanceTests() {
       logging: { level: "error", format: "pretty" },
     })
   );
-  const unconfiguredJarvis = new JarvisCore(unconfiguredConfigPath);
+    unconfiguredJarvis = new JarvisCore(unconfiguredConfigPath);
   const unconfiguredEvents = await collectEvents(unconfiguredJarvis, "Hey Jarvis, what are you doing?");
   const failureError = unconfiguredEvents.find(e => e.type === "error");
   assert(failureError !== undefined && failureError.type === "error", "Reported explicit error when FAST provider is disabled/unconfigured");
@@ -232,9 +236,20 @@ async function runAcceptanceTests() {
   );
   unconfiguredJarvis.shutdown();
 
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    try {
+      if (jarvis) jarvis.shutdown();
+    } catch {}
+    try {
+      if (restartedJarvis) restartedJarvis.shutdown();
+    } catch {}
+    try {
+      if (unconfiguredJarvis) unconfiguredJarvis.shutdown();
+    } catch {}
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`  TOTAL: ${totalTests}  |  PASSED: ${passedTests}  |  FAILED: ${failedTests}`);

@@ -36,12 +36,19 @@ async function runPhase1RefactorTests() {
 
   const logger = new Logger("Phase1Refactor", "error");
 
-  // -----------------------------------------------------------------
-  // 1. Production Default Configuration Audit
-  // -----------------------------------------------------------------
-  console.log("▶ Group 1: Production Default Configuration Audit");
   const origEnvMock = process.env.JARVIS_FAST_PROVIDER;
-  delete process.env.JARVIS_FAST_PROVIDER;
+  const origKey = process.env.FAST_MODEL_API_KEY;
+  let mockServer: http.Server | null = null;
+  let errorServer: http.Server | null = null;
+  let coreUnconfigured: JarvisCore | null = null;
+  let coreMock: JarvisCore | null = null;
+
+  try {
+    // -----------------------------------------------------------------
+    // 1. Production Default Configuration Audit
+    // -----------------------------------------------------------------
+    console.log("▶ Group 1: Production Default Configuration Audit");
+    delete process.env.JARVIS_FAST_PROVIDER;
 
   const cfg = getDefaultConfig();
   assert(cfg.fastModel.provider === "openai-compatible", "Production default provider is 'openai-compatible' (NOT 'mock')");
@@ -53,7 +60,6 @@ async function runPhase1RefactorTests() {
   // -----------------------------------------------------------------
   console.log("\n▶ Group 2: Explicit Error on Unconfigured Provider");
   // Ensure env key is absent
-  const origKey = process.env.FAST_MODEL_API_KEY;
   delete process.env.FAST_MODEL_API_KEY;
   delete process.env.OPENAI_API_KEY;
 
@@ -97,7 +103,7 @@ async function runPhase1RefactorTests() {
     })
   );
 
-  const coreUnconfigured = new JarvisCore(unconfiguredConfigFile);
+  coreUnconfigured = new JarvisCore(unconfiguredConfigFile);
   const events: any[] = [];
   for await (const ev of coreUnconfigured.processInput("Hey Jarvis, what are you doing?")) {
     events.push(ev);
@@ -123,7 +129,7 @@ async function runPhase1RefactorTests() {
     })
   );
 
-  const coreMock = new JarvisCore(mockConfigFile);
+  coreMock = new JarvisCore(mockConfigFile);
   assert((coreMock.fastModel as any).isDevMock === true, "MockFastProvider is only created when explicitly configured as 'mock'");
   coreMock.shutdown();
 
@@ -153,7 +159,7 @@ async function runPhase1RefactorTests() {
   let receivedAuthHeader = "";
   let receivedModelName = "";
 
-  const mockServer = http.createServer((req, res) => {
+  mockServer = http.createServer((req, res) => {
     receivedAuthHeader = req.headers["authorization"] || "";
 
     if (req.url === "/v1/chat/completions" && req.method === "POST") {
@@ -218,7 +224,7 @@ async function runPhase1RefactorTests() {
   // -----------------------------------------------------------------
   console.log("\n▶ Group 6: Cloud Provider HTTP Error Handling");
   const errorServerPort = 39282;
-  const errorServer = http.createServer((req, res) => {
+  errorServer = http.createServer((req, res) => {
     res.writeHead(401, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { message: "Invalid API key provided" } }));
   });
@@ -242,17 +248,26 @@ async function runPhase1RefactorTests() {
 
   assert(capturedError.includes("401") && capturedError.includes("Invalid API key"), "Handles HTTP 401 gracefully and yields structured error event");
 
-  // Teardown test servers
-  mockServer.close();
-  errorServer.close();
+  } finally {
+    if (coreUnconfigured) {
+      try { coreUnconfigured.shutdown(); } catch {}
+    }
+    if (coreMock) {
+      try { coreMock.shutdown(); } catch {}
+    }
+    if (mockServer) {
+      try { mockServer.close(); } catch {}
+    }
+    if (errorServer) {
+      try { errorServer.close(); } catch {}
+    }
+    if (origEnvMock) process.env.JARVIS_FAST_PROVIDER = origEnvMock;
+    if (origKey) process.env.FAST_MODEL_API_KEY = origKey;
 
-  // Restore env if any
-  if (origEnvMock) process.env.JARVIS_FAST_PROVIDER = origEnvMock;
-  if (origKey) process.env.FAST_MODEL_API_KEY = origKey;
-
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`  TOTAL: ${totalTests}  |  PASSED: ${passedTests}  |  FAILED: ${failedTests}`);

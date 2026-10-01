@@ -106,6 +106,9 @@ async function runOpenCodeGatewayTests() {
 
   const testDbPath = path.join(testDir, "test_gateway.db");
   const testConfigPath = path.join(testDir, "jarvis.config.json");
+  let jarvis: JarvisCore | undefined;
+
+  try {
   const isLegacyDaemon = Boolean(health.version && compareSemver(health.version, "2.1.0") < 0);
   client.legacyProtocolMode = isLegacyDaemon;
 
@@ -165,7 +168,7 @@ async function runOpenCodeGatewayTests() {
 
   // Initialize JARVIS Core with OpenCode as sole model gateway
   console.log("\n▶ Initializing JARVIS Core (OpenCode Gateway Mode)...");
-  const jarvis = new JarvisCore(testConfigPath);
+    jarvis = new JarvisCore(testConfigPath);
   await jarvis.initialize();
 
   // 4. FAST Conversational Request through OpenCode
@@ -272,9 +275,14 @@ async function runOpenCodeGatewayTests() {
   }
   assert(deadReportedError, `Dead daemon cleanly emits error: "${deadErrorMessage}"`);
 
-  // Clean up test environment
-  jarvis.shutdown();
-  fs.rmSync(testDir, { recursive: true, force: true });
+  } finally {
+    try {
+      if (jarvis) jarvis.shutdown();
+    } catch {}
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=================================================================");
   if (failedTests === 0) {

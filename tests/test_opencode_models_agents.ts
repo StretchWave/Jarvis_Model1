@@ -28,7 +28,8 @@ async function runModelAgentTests() {
   console.log("    OPENCODE MODEL & AGENT SWITCHING TEST SUITE        ");
   console.log("=======================================================\n");
 
-  const testDir = path.join(process.cwd(), `.test_models_${Date.now()}`);
+  const testDir = path.join(process.cwd(), ".test_models");
+  if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
   const logger = new Logger("TestModelAgent", "error");
 
@@ -39,7 +40,10 @@ async function runModelAgentTests() {
   let lastReceivedPromptBody: any = null;
 
   const mockServerPort = 39810;
-  const mockServer = http.createServer((req, res) => {
+  let mockServer: http.Server | undefined;
+
+  try {
+    mockServer = http.createServer((req, res) => {
     // 1. /api/health or /api/info
     if ((req.url === "/api/health" || req.url === "/api/info") && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -356,11 +360,14 @@ async function runModelAgentTests() {
   );
   assert(invalidVariant.ok === false && invalidVariant.error?.includes("Variant"), "Unsupported variant cleanly rejected by validation helper");
 
-  // Cleanup
-  await new Promise<void>((r) => mockServer.close(() => r()));
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    if (mockServer) {
+      await new Promise<void>((r) => mockServer!.close(() => r()));
+    }
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`Model & Agent Tests Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);

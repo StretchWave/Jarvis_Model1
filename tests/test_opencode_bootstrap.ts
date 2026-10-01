@@ -28,9 +28,12 @@ async function runBootstrapTests() {
   console.log("       OPENCODE DAEMON BOOTSTRAP TEST SUITE            ");
   console.log("=======================================================\n");
 
-  const testDir = path.join(process.cwd(), `.test_bootstrap_${Date.now()}`);
+  const testDir = path.join(process.cwd(), ".test_bootstrap");
+  if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   fs.mkdirSync(testDir, { recursive: true });
   const logger = new Logger("TestBootstrap", "error");
+
+  try {
 
   // -------------------------------------------------------------
   // Test 1: Daemon already healthy -> no spawn
@@ -174,10 +177,11 @@ async function runBootstrapTests() {
   const timeoutResult = await client5.ensureDaemonRunning();
   assert(timeoutResult === false, "Clean failure returned false when service binary cannot be found");
 
-  // Cleanup
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true });
-  } catch {}
+  } finally {
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  }
 
   console.log("\n=======================================================");
   console.log(`Bootstrap Tests Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);
