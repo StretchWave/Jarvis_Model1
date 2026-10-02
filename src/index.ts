@@ -34,6 +34,9 @@ if (isMainModule) {
     console.log("===============================================================\n");
   }).catch((err) => {
     console.error("Failed to start Jarvis:", err);
+    try {
+      core.shutdown();
+    } catch {}
     process.exit(1);
   });
 }

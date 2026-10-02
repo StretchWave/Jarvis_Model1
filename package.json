@@ -1,12 +1,16 @@
 {
   "name": "jarvis-core",
   "version": "1.0.0",
-  "description": "Jarvis Personal AI Assistant",
-  "main": "src/index.ts",
+  "description": "JARVIS Personal AI Desktop Assistant",
+  "author": "StretchWave",
+  "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
     "start": "node --experimental-strip-types src/index.ts",
     "dev": "node --experimental-strip-types src/index.ts",
+    "desktop:dev": "electron electron/main.cjs",
+    "desktop:build": "electron-builder",
+    "tts:setup": "python scripts/setup_kokoro.py",
     "daemon:opencode": "opencode service start",
     "daemon:opencode:status": "opencode service status",
     "daemon:opencode:restart": "opencode service restart",
@@ -15,6 +19,29 @@
     "test:gateway": "node --experimental-strip-types tests/test_opencode_gateway.ts",
     "test:smoke": "node --experimental-strip-types tests/smoke_manual_tests.ts"
   },
+  "build": {
+    "appId": "com.jarvis.desktop",
+    "productName": "JARVIS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "public/**/*",
+      "src/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "dir",
+        "nsis"
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    }
+  },
   "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  }
 }

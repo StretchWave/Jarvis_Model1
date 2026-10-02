@@ -2,6 +2,8 @@
  * JARVIS Decoupled Voice Architecture
  * 
  * Provides:
+ * - Provider-based TTS architecture (Kokoro-82M primary neural voice, system fallback)
+ * - Natural sentence grouping
  * - Decoupled STT and TTS interfaces
  * - Push-to-Talk and Wake-Word architectures
  * - Sleep / Awake state management
@@ -12,6 +14,13 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { Logger } from "../logger.ts";
+import type { TTSProvider, TTSOptions, TTSAudioResult } from "./tts_provider.ts";
+import { KokoroTTSProvider } from "./kokoro_tts.ts";
+import { splitIntoSentences } from "./sentence_grouper.ts";
+
+export * from "./tts_provider.ts";
+export * from "./sentence_grouper.ts";
+export * from "./kokoro_tts.ts";
 
 const execAsync = promisify(exec);
 
@@ -28,11 +37,8 @@ export interface SpeechToTextProvider {
   transcribe(audioBuffer: Buffer): Promise<STTResult>;
 }
 
-export interface TextToSpeechProvider {
-  name: string;
-  speak(text: string, signal?: AbortSignal): Promise<void>;
-  stop?(): Promise<void>;
-}
+// Backward compatibility alias
+export type TextToSpeechProvider = TTSProvider;
 
 export interface WakeWordDetector {
   name: string;
@@ -52,7 +58,6 @@ export class DefaultWakeWordDetector implements WakeWordDetector {
   public evaluateText(text: string): { type: "wake" | "sleep" | "none"; matchedWord?: string } {
     const lower = text.toLowerCase().trim();
 
-    // Prioritize longer phrases first
     const sortedSleep = [...this.sleepWords].sort((a, b) => b.length - a.length);
     for (const w of sortedSleep) {
       if (lower === w || lower.startsWith(w + " ") || lower.endsWith(" " + w) || lower.includes(w)) {
@@ -74,13 +79,46 @@ export class DefaultWakeWordDetector implements WakeWordDetector {
 /**
  * In-Memory Mock Text-To-Speech Provider for offline testing and fast unit tests.
  */
-export class MockTTSProvider implements TextToSpeechProvider {
-  public name = "MockTTSProvider";
+export class MockTTSProvider implements TTSProvider {
+  public readonly name = "MockTTSProvider";
+  public readonly isNeural = false;
   public spokenHistory: string[] = [];
   public isCurrentlySpeaking = false;
   private abortController: AbortController | null = null;
 
-  public async speak(text: string, signal?: AbortSignal): Promise<void> {
+  public async isAvailable(): Promise<boolean> {
+    return true;
+  }
+
+  public async synthesize(text: string, options?: TTSOptions): Promise<TTSAudioResult> {
+    this.spokenHistory.push(text);
+    // Generate minimal dummy 44-byte standard RIFF WAV header
+    const sampleRate = 24000;
+    const numSamples = 2400; // 0.1s
+    const buffer = Buffer.alloc(44 + numSamples * 2);
+    buffer.write("RIFF", 0);
+    buffer.writeUInt32LE(36 + numSamples * 2, 4);
+    buffer.write("WAVE", 8);
+    buffer.write("fmt ", 12);
+    buffer.writeUInt32LE(16, 16);
+    buffer.writeUInt16LE(1, 20); // PCM
+    buffer.writeUInt16LE(1, 22); // mono
+    buffer.writeUInt32LE(sampleRate, 24);
+    buffer.writeUInt32LE(sampleRate * 2, 28);
+    buffer.writeUInt16LE(2, 32);
+    buffer.writeUInt16LE(16, 34);
+    buffer.write("data", 36);
+    buffer.writeUInt32LE(numSamples * 2, 40);
+
+    return {
+      audioBuffer: buffer,
+      format: "wav",
+      sampleRate,
+      durationSec: 0.1,
+    };
+  }
+
+  public async speak(text: string, options?: TTSOptions, signal?: AbortSignal): Promise<void> {
     this.abortController = new AbortController();
     this.isCurrentlySpeaking = true;
     this.spokenHistory.push(text);
@@ -113,16 +151,24 @@ export class MockTTSProvider implements TextToSpeechProvider {
 /**
  * Native Windows SAPI Speech Provider.
  */
-export class WindowsSapiTTS implements TextToSpeechProvider {
-  public name = "WindowsSAPI";
+export class WindowsSapiTTS implements TTSProvider {
+  public readonly name = "WindowsSAPI";
+  public readonly isNeural = false;
   private logger: Logger;
-  private currentChild: any = null;
 
   constructor(logger: Logger) {
     this.logger = logger.forComponent("WindowsSapiTTS");
   }
 
-  public async speak(text: string, signal?: AbortSignal): Promise<void> {
+  public async isAvailable(): Promise<boolean> {
+    return process.platform === "win32";
+  }
+
+  public async synthesize(text: string, options?: TTSOptions): Promise<TTSAudioResult> {
+    throw new Error("Direct audio synthesis stream not supported by Windows SAPI COM object. Use Kokoro neural voice or browser SpeechSynthesis.");
+  }
+
+  public async speak(text: string, options?: TTSOptions, signal?: AbortSignal): Promise<void> {
     const safeText = text.replace(/["'`$\\]/g, " ").replace(/\s+/g, " ").trim();
     if (!safeText) return;
 
@@ -149,7 +195,9 @@ export class WindowsSapiTTS implements TextToSpeechProvider {
  * Central Voice Service Orchestrator
  */
 export class VoiceService {
-  private ttsProvider: TextToSpeechProvider;
+  public ttsProvider: TTSProvider;
+  public neuralProvider: KokoroTTSProvider;
+  public fallbackProvider: TTSProvider;
   private sttProvider?: SpeechToTextProvider;
   private wakeDetector: WakeWordDetector;
   private logger: Logger;
@@ -158,18 +206,23 @@ export class VoiceService {
   private mode: VoiceInputMode = "push_to_talk";
   private isPushToTalkActive = false;
   private activeAbortController: AbortController | null = null;
+  private customTTSProvided: boolean = false;
 
   constructor(
     logger: Logger,
     options?: {
-      tts?: TextToSpeechProvider;
+      tts?: TTSProvider;
+      neural?: KokoroTTSProvider;
       stt?: SpeechToTextProvider;
       wakeDetector?: WakeWordDetector;
       initialState?: VoiceState;
     }
   ) {
     this.logger = logger.forComponent("VoiceService");
-    this.ttsProvider = options?.tts || (process.env.NODE_ENV === "test" ? new MockTTSProvider() : new WindowsSapiTTS(logger));
+    this.customTTSProvided = !!options?.tts;
+    this.neuralProvider = options?.neural || new KokoroTTSProvider(logger);
+    this.fallbackProvider = options?.tts || (process.env.NODE_ENV === "test" ? new MockTTSProvider() : new WindowsSapiTTS(logger));
+    this.ttsProvider = this.fallbackProvider;
     this.sttProvider = options?.stt;
     this.wakeDetector = options?.wakeDetector || new DefaultWakeWordDetector();
     this.state = options?.initialState || "awake";
@@ -203,6 +256,45 @@ export class VoiceService {
   public endPushToTalk(): void {
     this.isPushToTalkActive = false;
     this.logger.debug("Push-to-talk deactivated");
+  }
+
+  /**
+   * Returns health status of neural voice and active providers.
+   */
+  public async getProviderHealth(): Promise<{
+    neuralStatus: "READY" | "NOT_INSTALLED";
+    activeProvider: string;
+    isNeural: boolean;
+    modelDir: string;
+  }> {
+    const neuralAvailable = await this.neuralProvider.isAvailable();
+    return {
+      neuralStatus: neuralAvailable ? "READY" : "NOT_INSTALLED",
+      activeProvider: neuralAvailable ? this.neuralProvider.name : this.fallbackProvider.name,
+      isNeural: neuralAvailable,
+      modelDir: this.neuralProvider.getModelDirectory(),
+    };
+  }
+
+  /**
+   * Synthesizes audio using Kokoro neural voice (or mock provider in test mode).
+   */
+  public async synthesize(text: string, options?: TTSOptions): Promise<TTSAudioResult> {
+    const isNeural = await this.neuralProvider.isAvailable();
+    if (isNeural) {
+      return this.neuralProvider.synthesize(text, options);
+    }
+    if (this.fallbackProvider instanceof MockTTSProvider) {
+      return this.fallbackProvider.synthesize(text, options);
+    }
+    throw new Error("Kokoro-82M neural TTS is not installed. Please run 'npm run tts:setup' or use system voice fallback.");
+  }
+
+  /**
+   * Split a large text response into natural sentence units for coherent speech synthesis.
+   */
+  public getSentenceUnits(text: string): string[] {
+    return splitIntoSentences(text);
   }
 
   /**
@@ -263,17 +355,25 @@ export class VoiceService {
   /**
    * Speak response using configured TTS provider.
    */
-  public async speak(text: string): Promise<void> {
+  public async speak(text: string, options?: TTSOptions): Promise<void> {
     if (this.state === "sleeping") return;
 
     this.interrupt();
-    this.activeAbortController = new AbortController();
+    const abortCtrl = new AbortController();
+    this.activeAbortController = abortCtrl;
 
     this.logger.debug(`Speaking: "${text.substring(0, 40)}..."`);
     try {
-      await this.ttsProvider.speak(text, this.activeAbortController.signal);
+      const activeProvider = this.customTTSProvided
+        ? this.fallbackProvider
+        : ((await this.neuralProvider.isAvailable()) ? this.neuralProvider : this.fallbackProvider);
+
+      if (abortCtrl.signal.aborted) return;
+      await activeProvider.speak(text, options, abortCtrl.signal);
     } finally {
-      this.activeAbortController = null;
+      if (this.activeAbortController === abortCtrl) {
+        this.activeAbortController = null;
+      }
     }
   }
 
@@ -285,8 +385,11 @@ export class VoiceService {
       this.activeAbortController.abort();
       this.activeAbortController = null;
     }
-    if (this.ttsProvider.stop) {
-      this.ttsProvider.stop().catch(() => {});
+    if (this.neuralProvider.stop) {
+      this.neuralProvider.stop().catch(() => {});
+    }
+    if (this.fallbackProvider.stop) {
+      this.fallbackProvider.stop().catch(() => {});
     }
     this.logger.debug("Speech interrupted and silenced");
   }

@@ -23,3 +23,9 @@ yarn-error.log*
 .test_acceptance/
 scratch/
 scratch_*
+
+# Build & Distribution Artifacts
+dist/
+release/
+*.exe
+

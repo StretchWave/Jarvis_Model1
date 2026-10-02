@@ -114,6 +114,34 @@ export class JarvisServer {
           return;
         }
 
+        // GET /api/tasks
+        if (url.pathname === "/api/tasks" && req.method === "GET") {
+          const status = url.searchParams.get("status") as any;
+          const projectId = url.searchParams.get("projectId") || undefined;
+          const tasks = this.core.db.listTasks(status, projectId);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ tasks }));
+          return;
+        }
+
+        // GET /api/projects
+        if (url.pathname === "/api/projects" && req.method === "GET") {
+          const projects = this.core.db.listProjects();
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ projects }));
+          return;
+        }
+
+        // GET /api/memories
+        if (url.pathname === "/api/memories" && req.method === "GET") {
+          const query = url.searchParams.get("q") || "";
+          const projectId = url.searchParams.get("projectId") || undefined;
+          const memories = this.core.db.getRelevantMemories(query, projectId, 50);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ memories }));
+          return;
+        }
+
         // POST /api/sessions
         if (url.pathname === "/api/sessions" && req.method === "POST") {
           let body = "";
@@ -207,7 +235,11 @@ export class JarvisServer {
                 return;
               }
 
-              const { fast, agent, agentWeight, persist, sessionId } = parsed;
+              const fast = parsed.fast || (parsed.providerID && parsed.modelID ? { providerID: parsed.providerID, modelID: parsed.modelID, variant: parsed.variant } : undefined);
+              const agent = parsed.agent;
+              const agentWeight = parsed.agentWeight;
+              const persist = parsed.persist;
+              const sessionId = parsed.sessionId || parsed.sessionID;
 
               // Validate against catalog without hiding failures (Requirement 12 & 13)
               let catalog: any[];
@@ -398,7 +430,7 @@ export class JarvisServer {
                 return;
               }
 
-              const { agentID } = parsed;
+              const agentID = parsed.agentID || parsed.agent;
               if (!agentID || typeof agentID !== "string") {
                 res.writeHead(400, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ error: "Missing or invalid 'agentID'" }));
@@ -445,6 +477,61 @@ export class JarvisServer {
           this.core.voice.interrupt();
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: true }));
+          return;
+        }
+
+        // GET /api/voice/status
+        if (url.pathname === "/api/voice/status" && req.method === "GET") {
+          const health = await this.core.voice.getProviderHealth();
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            neuralStatus: health.neuralStatus,
+            activeProvider: health.activeProvider,
+            isNeural: health.isNeural,
+            modelDir: health.modelDir,
+            voices: [
+              { id: "bm_george", name: "George (British Male, Calm)", lang: "en-gb", gender: "male" },
+              { id: "bm_lewis", name: "Lewis (British Male, Natural)", lang: "en-gb", gender: "male" },
+              { id: "bf_emma", name: "Emma (British Female, Clear)", lang: "en-gb", gender: "female" },
+              { id: "am_michael", name: "Michael (American Male)", lang: "en-us", gender: "male" },
+            ],
+          }));
+          return;
+        }
+
+        // POST /api/voice/synthesize
+        if (url.pathname === "/api/voice/synthesize" && req.method === "POST") {
+          let body = "";
+          req.on("data", chunk => body += chunk);
+          req.on("end", async () => {
+            try {
+              let parsed: any = {};
+              try { parsed = JSON.parse(body); } catch {}
+              const text = parsed.text;
+              if (!text || typeof text !== "string") {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing or invalid 'text' payload" }));
+                return;
+              }
+              const voice = parsed.voice || "bm_george";
+              const speed = typeof parsed.speed === "number" ? parsed.speed : 1.0;
+
+              const audioResult = await this.core.voice.synthesize(text, { voice, speed });
+              res.writeHead(200, {
+                "Content-Type": "audio/wav",
+                "Content-Length": audioResult.audioBuffer.length,
+                "X-Audio-Sample-Rate": audioResult.sampleRate,
+                "X-Audio-Duration": audioResult.durationSec || 0,
+              });
+              res.end(audioResult.audioBuffer);
+            } catch (err: any) {
+              res.writeHead(503, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({
+                error: err.message,
+                fallback: "system",
+              }));
+            }
+          });
           return;
         }
 
