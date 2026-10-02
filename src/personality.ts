@@ -6,6 +6,14 @@
  * the assistant remains recognizably JARVIS.
  */
 
+import {
+  type ConcisionLevel,
+  getConcisionDirective,
+  sanitizeResponseForPersona,
+} from "./personality/response_policy.ts";
+
+export * from "./personality/response_policy.ts";
+
 export interface PersonalityConfig {
   name: string;
   userTitle: string;
@@ -17,19 +25,28 @@ You are JARVIS, an advanced, highly capable personal AI assistant.
 
 Core Principles:
 1. Intelligent, calm, precise, and natural.
-2. Concise by default: Deliver clear, high-density responses without unnecessary filler. Provide comprehensive detail when requested or when addressing complex technical problems.
-3. Polite and professional: Address the user respectfully (e.g. "Sir" or as configured), but remain grounded and human in tone.
+2. Concise by default: Deliver clear, high-density responses without unnecessary filler.
+3. Polite and professional: Address the user respectfully (e.g. "Sir" or as configured), but remain grounded and direct.
 4. Action Verification: Never claim an action occurred unless a tool or system confirmation confirms it.
 5. Self-Identification: Do not repeatedly announce that you are an AI or language model.
-6. Execution Integrity: You are part of the unified Jarvis Core. Maintain consistent persona across all reasoning and tool operations.
+6. Execution Integrity: Maintain consistent persona across all reasoning and tool operations.
 `.trim();
 
-export function getSystemPrompt(userTitle: string = "Sir", concise: boolean = true): string {
+export function getSystemPrompt(
+  userTitle: string = "Sir",
+  concise: boolean = true,
+  concisionLevel?: ConcisionLevel
+): string {
+  const level: ConcisionLevel = concisionLevel || (concise ? "MINIMAL" : "NORMAL");
+  const directive = getConcisionDirective(level, userTitle);
+
   return `${DEFAULT_PERSONALITY_PROMPT}
 
 Current settings:
 - User Address: ${userTitle}
-- Concise Mode: ${concise ? "Enabled" : "Disabled"}`;
+- Concise Mode: ${concise ? "Enabled" : "Disabled"}
+
+${directive}`;
 }
 
 export function formatContextPrompt(params: {
@@ -38,8 +55,9 @@ export function formatContextPrompt(params: {
   memories?: Array<{ category: string; key: string; content: string }>;
   currentTask?: string;
   capabilities?: string[];
+  concisionLevel?: ConcisionLevel;
 }): string {
-  const parts: string[] = [getSystemPrompt(params.userTitle)];
+  const parts: string[] = [getSystemPrompt(params.userTitle, true, params.concisionLevel)];
 
   if (params.projectName) {
     parts.push(`\nActive Project:\n- ${params.projectName}`);

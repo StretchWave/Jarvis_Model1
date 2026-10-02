@@ -110,7 +110,7 @@ async function runPhase1RefactorTests() {
   }
   const errorEvent = events.find((e) => e.type === "error");
   assert(errorEvent !== undefined, "JarvisCore emits error event on unconfigured model without silent mock fallback");
-  coreUnconfigured.shutdown();
+  await coreUnconfigured.shutdown();
 
   // -----------------------------------------------------------------
   // 3. Explicit Development/Test Mode Selection
@@ -131,7 +131,7 @@ async function runPhase1RefactorTests() {
 
   coreMock = new JarvisCore(mockConfigFile);
   assert((coreMock.fastModel as any).isDevMock === true, "MockFastProvider is only created when explicitly configured as 'mock'");
-  coreMock.shutdown();
+  await coreMock.shutdown();
 
   // -----------------------------------------------------------------
   // 4. Dynamic Environment Variable Secret Resolution
@@ -250,20 +250,27 @@ async function runPhase1RefactorTests() {
 
   } finally {
     if (coreUnconfigured) {
-      try { coreUnconfigured.shutdown(); } catch {}
+      try { await coreUnconfigured.shutdown(); } catch {}
     }
     if (coreMock) {
-      try { coreMock.shutdown(); } catch {}
+      try { await coreMock.shutdown(); } catch {}
     }
     if (mockServer) {
-      try { mockServer.close(); } catch {}
+      try {
+        mockServer.closeAllConnections?.();
+        await new Promise((r) => mockServer.close(r));
+      } catch {}
     }
     if (errorServer) {
-      try { errorServer.close(); } catch {}
+      try {
+        errorServer.closeAllConnections?.();
+        await new Promise((r) => errorServer.close(r));
+      } catch {}
     }
     if (origEnvMock) process.env.JARVIS_FAST_PROVIDER = origEnvMock;
     if (origKey) process.env.FAST_MODEL_API_KEY = origKey;
 
+    await new Promise((r) => setTimeout(r, 100));
     try {
       fs.rmSync(testDir, { recursive: true, force: true });
     } catch {}
@@ -274,6 +281,7 @@ async function runPhase1RefactorTests() {
   console.log("=======================================================\n");
 
   if (failedTests > 0) process.exit(1);
+  process.exit(0);
 }
 
 runPhase1RefactorTests().catch((err) => {

@@ -69,6 +69,7 @@ async function runPhase5() {
   console.log("=======================================================\n");
 
   if (failedTests > 0) process.exit(1);
+  process.exit(0);
 }
 
 runPhase5().catch((err) => {

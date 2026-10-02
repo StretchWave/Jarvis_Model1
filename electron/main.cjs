@@ -2,90 +2,169 @@
  * Electron Main Process for JARVIS Desktop
  * 
  * Architecture:
- * Electron main process -> local JARVIS backend -> BrowserWindow -> http://127.0.0.1:<port>
+ * Electron Main
+ *     ↓
+ * utilityProcess.fork("backend-entry.cjs")
+ *     ↓
+ * JARVIS Node backend
+ *     ↓
+ * local HTTP server (127.0.0.1:<port>)
+ *     ↓
+ * BrowserWindow
  * 
  * Features:
- * - Managed backend lifecycle (zero orphan processes)
+ * - UtilityProcess managed backend child (zero process.execPath abuse)
  * - Active readiness check via HTTP polling before window creation
+ * - Backend lifecycle monitoring with crash recovery ("Restart Backend")
+ * - Native Desktop System Tray integration
+ * - Native Global Shortcut (Ctrl/Cmd + Space)
+ * - Native desktop notifications
  * - Secure BrowserWindow defaults (contextIsolation: true, nodeIntegration: false)
- * - Native desktop window controls (minimize, maximize, restore, close)
+ * - Native window controls (minimize, maximize, restore, close)
  */
 
-const { app, BrowserWindow, ipcMain } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  utilityProcess,
+  Tray,
+  Menu,
+  globalShortcut,
+  Notification,
+  dialog,
+  nativeImage,
+} = require("electron");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const { waitForServerReady } = require("./readiness.cjs");
 
 let mainWindow = null;
-let backendProcess = null;
+let backendChild = null;
+let tray = null;
 let isQuitting = false;
+let backendRestarting = false;
 
 const DEFAULT_PORT = process.env.JARVIS_PORT ? parseInt(process.env.JARVIS_PORT, 10) : 31415;
-const HOST = "127.0.0.1";
+const HOST = process.env.JARVIS_HOST || "127.0.0.1";
 const SERVER_URL = `http://${HOST}:${DEFAULT_PORT}`;
 
 function startBackend() {
-  const rootDir = path.resolve(__dirname, "..");
-  console.log(`[Electron] Starting JARVIS backend from ${rootDir}...`);
+  if (backendChild) {
+    console.log("[Electron] Backend process already running.");
+    return;
+  }
 
-  backendProcess = spawn(
-    process.execPath,
-    ["--experimental-strip-types", "src/index.ts"],
-    {
-      cwd: rootDir,
+  const backendScript = path.join(__dirname, "backend-entry.cjs");
+  console.log(`[Electron] Forking JARVIS backend utilityProcess: ${backendScript}...`);
+
+  try {
+    backendChild = utilityProcess.fork(backendScript, [], {
+      execArgv: ["--experimental-strip-types"],
       env: {
         ...process.env,
-        PORT: String(DEFAULT_PORT),
-        HOST: HOST,
+        JARVIS_PORT: String(DEFAULT_PORT),
+        JARVIS_HOST: HOST,
       },
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    }
-  );
+      stdio: "pipe",
+    });
 
-  backendProcess.stdout?.on("data", (data) => {
-    const text = data.toString().trim();
-    if (text) console.log(`[JARVIS Backend] ${text}`);
-  });
+    backendChild.stdout?.on("data", (chunk) => {
+      const text = chunk.toString().trim();
+      if (text) console.log(`[JARVIS Backend] ${text}`);
+    });
 
-  backendProcess.stderr?.on("data", (data) => {
-    const text = data.toString().trim();
-    if (text) console.error(`[JARVIS Backend Error] ${text}`);
-  });
+    backendChild.stderr?.on("data", (chunk) => {
+      const text = chunk.toString().trim();
+      if (text) console.error(`[JARVIS Backend Error] ${text}`);
+    });
 
-  backendProcess.on("exit", (code, signal) => {
-    console.log(`[Electron] Backend process exited (code=${code}, signal=${signal})`);
-    backendProcess = null;
-    if (!isQuitting) {
-      app.quit();
-    }
-  });
+    backendChild.on("spawn", () => {
+      console.log(`[Electron] Backend utilityProcess spawned (pid=${backendChild.pid})`);
+    });
+
+    backendChild.on("exit", (code) => {
+      console.log(`[Electron] Backend utilityProcess exited (code=${code})`);
+      backendChild = null;
+
+      if (!isQuitting && !backendRestarting) {
+        handleBackendCrash(code);
+      }
+      backendRestarting = false;
+    });
+  } catch (err) {
+    console.error("[Electron] Failed to fork backend utilityProcess:", err);
+    handleBackendCrash(-1, err.message);
+  }
 }
 
 function stopBackend() {
-  if (backendProcess && !backendProcess.killed) {
-    console.log("[Electron] Stopping JARVIS backend process...");
+  if (backendChild) {
+    console.log("[Electron] Stopping JARVIS backend utilityProcess...");
     try {
-      backendProcess.kill("SIGTERM");
+      backendChild.postMessage({ type: "shutdown" });
       setTimeout(() => {
-        if (backendProcess && !backendProcess.killed) {
-          backendProcess.kill("SIGKILL");
+        if (backendChild) {
+          backendChild.kill();
+          backendChild = null;
         }
-      }, 2000);
+      }, 1500);
     } catch (e) {
-      console.error("[Electron] Error terminating backend:", e);
+      console.error("[Electron] Error signaling backend stop:", e);
+      backendChild.kill();
+      backendChild = null;
     }
+  }
+}
+
+async function restartBackend() {
+  backendRestarting = true;
+  stopBackend();
+  await new Promise((r) => setTimeout(r, 600));
+
+  startBackend();
+  try {
+    await waitForServerReady(`${SERVER_URL}/api/health`, 12000, 250);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL(SERVER_URL);
+    }
+  } catch (err) {
+    handleBackendCrash(-1, "Backend restart timed out.");
+  }
+}
+
+function handleBackendCrash(code, details = "") {
+  console.error(`[Electron] Backend unexpected termination (code=${code}): ${details}`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("desktop:backend-error", {
+      code,
+      message: details || `Backend terminated unexpectedly (exit code: ${code}).`,
+    });
+  } else {
+    dialog.showMessageBox({
+      type: "error",
+      title: "JARVIS Backend Error",
+      message: "The JARVIS Core background service encountered an error.",
+      detail: details || `Exit code: ${code}. You can restart the backend service.`,
+      buttons: ["Restart Backend", "Quit Application"],
+    }).then(({ response }) => {
+      if (response === 0) {
+        restartBackend();
+      } else {
+        app.quit();
+      }
+    });
   }
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 920,
+    width: 1320,
+    height: 880,
+    minWidth: 960,
     minHeight: 640,
     title: "JARVIS",
-    backgroundColor: "#080a0f",
+    backgroundColor: "#07090e",
     frame: false,
     titleBarStyle: "hidden",
     webPreferences: {
@@ -108,52 +187,153 @@ function createWindow() {
   });
 }
 
-// IPC Handlers for Native Window Controls
-ipcMain.on("window-minimize", () => {
-  if (mainWindow) mainWindow.minimize();
-});
+function createTray() {
+  try {
+    // Generate minimal clean tray icon
+    const iconPath = path.join(__dirname, "../public/favicon.ico");
+    const trayIcon = fs.existsSync(iconPath)
+      ? nativeImage.createFromPath(iconPath)
+      : nativeImage.createEmpty();
 
+    tray = new Tray(trayIcon);
+    tray.setToolTip("JARVIS Desktop Assistant");
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: "Open JARVIS",
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        },
+      },
+      { type: "separator" },
+      {
+        label: "Start Voice Session",
+        click: () => mainWindow?.webContents.send("desktop:tray-action", "start-voice"),
+      },
+      {
+        label: "Stop Voice Session",
+        click: () => mainWindow?.webContents.send("desktop:tray-action", "stop-voice"),
+      },
+      {
+        label: "Mute Speech",
+        click: () => mainWindow?.webContents.send("desktop:tray-action", "mute-speech"),
+      },
+      {
+        label: "New Session",
+        click: () => mainWindow?.webContents.send("desktop:tray-action", "new-session"),
+      },
+      { type: "separator" },
+      {
+        label: "Restart Backend",
+        click: () => restartBackend(),
+      },
+      {
+        label: "Quit",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+
+    tray.setContextMenu(contextMenu);
+    tray.on("double-click", () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible()) {
+          mainWindow.focus();
+        } else {
+          mainWindow.show();
+        }
+      }
+    });
+  } catch (err) {
+    console.warn("[Electron] Tray creation note:", err.message);
+  }
+}
+
+function registerShortcuts() {
+  try {
+    // Register global shortcut Ctrl+Space (or Cmd+Space on macOS)
+    const shortcut = process.platform === "darwin" ? "Command+Shift+Space" : "CommandOrControl+Space";
+    globalShortcut.register(shortcut, () => {
+      if (!mainWindow) return;
+      if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
+        mainWindow.show();
+        mainWindow.restore();
+        mainWindow.focus();
+      } else {
+        mainWindow.focus();
+      }
+      mainWindow.webContents.send("desktop:global-shortcut", "toggle");
+    });
+  } catch (err) {
+    console.warn("[Electron] Failed to register global shortcut:", err.message);
+  }
+}
+
+// IPC Handlers
+ipcMain.on("window-minimize", () => mainWindow?.minimize());
 ipcMain.on("window-maximize", () => {
-  if (mainWindow) {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
-    }
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
   }
 });
+ipcMain.on("window-close", () => mainWindow?.close());
+ipcMain.handle("window-is-maximized", () => mainWindow?.isMaximized() || false);
 
-ipcMain.on("window-close", () => {
-  if (mainWindow) mainWindow.close();
+ipcMain.on("desktop:restart-backend", () => {
+  restartBackend();
 });
 
-ipcMain.handle("window-is-maximized", () => {
-  return mainWindow ? mainWindow.isMaximized() : false;
+ipcMain.on("desktop:notify", (_, { title, body }) => {
+  if (Notification.isSupported()) {
+    new Notification({
+      title: title || "JARVIS",
+      body: body || "",
+      silent: false,
+    }).show();
+  }
 });
 
 // App Lifecycle
 app.whenReady().then(async () => {
   startBackend();
 
-  console.log(`[Electron] Polling server readiness at ${SERVER_URL}/api/status...`);
+  console.log(`[Electron] Waiting for JARVIS backend readiness at ${SERVER_URL}...`);
   try {
-    await waitForServerReady(`${SERVER_URL}/api/status`, 20000, 250);
-    console.log("[Electron] Server is ready! Launching application window.");
-    createWindow();
+    await waitForServerReady(`${SERVER_URL}/api/health`, 20000, 250);
+    console.log("[Electron] Backend health check PASSED. Launching window...");
   } catch (err) {
-    console.error(`[Electron] Server failed to start: ${err.message}`);
-    stopBackend();
-    app.quit();
+    console.error("[Electron] Backend readiness check timed out:", err.message);
   }
+
+  createWindow();
+  createTray();
+  registerShortcuts();
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
 });
 
 app.on("before-quit", () => {
   isQuitting = true;
+  globalShortcut.unregisterAll();
   stopBackend();
 });
 
 app.on("window-all-closed", () => {
-  isQuitting = true;
-  stopBackend();
-  app.quit();
+  if (process.platform !== "darwin") {
+    isQuitting = true;
+    stopBackend();
+    app.quit();
+  }
 });

@@ -48,6 +48,7 @@ const unitSuites: SuiteInfo[] = [
   { file: "tests/test_phase7.ts", name: "Proactive Engine & System Monitor" },
   { file: "tests/test_phase7_refactor.ts", name: "Proactive Pulse & Task Scheduler" },
   { file: "tests/test_phase8_refactor.ts", name: "RunInspector & Execution History" },
+  { file: "tests/test_desktop_worker_voice.ts", name: "Desktop Runtime, Kokoro Worker & Concision Voice" },
 ];
 
 const mockIntegrationSuites: SuiteInfo[] = [

@@ -26,7 +26,7 @@ import { VoiceService } from "./voice/voice_service.ts";
 import { ConversationContextManager } from "./context/conversation_context.ts";
 import { SkillRegistry } from "./skills/registry.ts";
 import { RunInspector, type TaskRun, type RecoveryResult } from "./inspector/run_inspector.ts";
-import { getSystemPrompt } from "./personality.ts";
+import { getSystemPrompt, classifyConcisionLevel, sanitizeResponseForPersona } from "./personality.ts";
 import { ArtifactManager } from "./artifacts/artifact_manager.ts";
 import { ProactivePulse } from "./proactive/pulse.ts";
 
@@ -482,13 +482,14 @@ export class JarvisCore {
         created_at: Date.now(),
       });
 
-      this.inspector.recordToolEvent(taskRun.runId, act.type, "completed", toolMessage);
+      const cleanedMessage = sanitizeResponseForPersona(toolMessage, "MINIMAL");
+      this.inspector.recordToolEvent(taskRun.runId, act.type, "completed", cleanedMessage);
       this.contextMgr.addTurn(session.id, "user", raw, "DIRECT");
-      this.contextMgr.addTurn(session.id, "assistant", toolMessage, "DIRECT");
-      this.inspector.completeRun(taskRun.runId, toolMessage);
+      this.contextMgr.addTurn(session.id, "assistant", cleanedMessage, "DIRECT");
+      this.inspector.completeRun(taskRun.runId, cleanedMessage);
 
-      yield { type: "token", text: toolMessage };
-      yield { type: "done", fullText: toolMessage };
+      yield { type: "token", text: cleanedMessage };
+      yield { type: "done", fullText: cleanedMessage };
       return;
     }
 
@@ -513,13 +514,16 @@ export class JarvisCore {
         created_at: Date.now(),
       });
 
+      const concisionLevel = classifyConcisionLevel(raw, { route: "SEARCH" });
+      const cleanedAnswer = sanitizeResponseForPersona(searchRes.answer, concisionLevel);
+
       this.inspector.recordToolEvent(taskRun.runId, "web_search", "completed", q);
       this.contextMgr.addTurn(session.id, "user", raw, "SEARCH");
-      this.contextMgr.addTurn(session.id, "assistant", searchRes.answer, "SEARCH");
-      this.inspector.completeRun(taskRun.runId, searchRes.answer);
+      this.contextMgr.addTurn(session.id, "assistant", cleanedAnswer, "SEARCH");
+      this.inspector.completeRun(taskRun.runId, cleanedAnswer);
 
-      yield { type: "token", text: searchRes.answer };
-      yield { type: "done", fullText: searchRes.answer, sources: searchRes.sources };
+      yield { type: "token", text: cleanedAnswer };
+      yield { type: "done", fullText: cleanedAnswer, sources: searchRes.sources };
       return;
     }
 
@@ -531,8 +535,9 @@ export class JarvisCore {
       yield { type: "progress", message: "Synthesizing conversational response..." };
       let fullText = "";
 
+      const concisionLevel = classifyConcisionLevel(raw, { route: "FAST" });
       const chatMessages = this.contextMgr.buildPromptMessages(raw, session.id, {
-        systemPrompt: getSystemPrompt(this.config.personality.userTitle, this.config.personality.conciseByDefault),
+        systemPrompt: getSystemPrompt(this.config.personality.userTitle, this.config.personality.conciseByDefault, concisionLevel),
         maxTurns: 6,
         activeProject: projectId || session.project_id,
       });
@@ -546,7 +551,7 @@ export class JarvisCore {
           fullText += ev.text;
           yield { type: "token", text: ev.text };
         } else if (ev.type === "done") {
-          const finalAns = ev.fullText || fullText;
+          const finalAns = sanitizeResponseForPersona(ev.fullText || fullText, concisionLevel);
           this.contextMgr.addTurn(session.id, "user", raw, "FAST");
           this.contextMgr.addTurn(session.id, "assistant", finalAns, "FAST");
           this.inspector.completeRun(taskRun.runId, finalAns);
@@ -592,9 +597,9 @@ export class JarvisCore {
         } else if (ev.type === "token") {
           yield { type: "token", text: ev.text };
         } else if (ev.type === "done") {
-          agentFinalText = ev.fullText;
+          agentFinalText = sanitizeResponseForPersona(ev.fullText, "NORMAL");
           this.inspector.completeRun(taskRun.runId, agentFinalText);
-          yield { type: "done", fullText: ev.fullText };
+          yield { type: "done", fullText: agentFinalText };
         } else if (ev.type === "error") {
           this.inspector.failRun(taskRun.runId, ev.error);
           yield { type: "error", error: ev.error };
@@ -612,9 +617,17 @@ export class JarvisCore {
     return await this.inspector.recoverSession(sessionId, this.opencode);
   }
 
-  public shutdown(): void {
+  private isShutdown = false;
+
+  public async shutdown(): Promise<void> {
+    if (this.isShutdown) return;
+    this.isShutdown = true;
     this.logger.info("Shutting down JARVIS Core.");
     this.pulse.stop();
+    this.voice.interrupt();
+    if (this.voice.neuralProvider && (this.voice.neuralProvider as any).shutdown) {
+      await (this.voice.neuralProvider as any).shutdown().catch(() => {});
+    }
     this.db.close();
   }
 }

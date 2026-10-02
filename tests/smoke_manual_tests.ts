@@ -273,6 +273,7 @@ async function runSmokeTests() {
     process.exit(1);
   }
   console.log("=================================================================\n");
+  process.exit(0);
 }
 
 runSmokeTests().catch(err => {

@@ -29,6 +29,7 @@
       "public/**/*",
       "src/**/*",
       "electron/**/*",
+      "scripts/**/*",
       "package.json"
     ],
     "win": {
@@ -41,7 +42,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
   }
 }

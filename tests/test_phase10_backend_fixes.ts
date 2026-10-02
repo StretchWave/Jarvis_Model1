@@ -495,6 +495,7 @@ async function runPhase10Tests() {
   console.log("=================================================================\n");
 
   if (failedTests > 0) process.exit(1);
+  process.exit(0);
 }
 
 runPhase10Tests().catch((err) => {

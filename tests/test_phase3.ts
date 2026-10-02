@@ -117,6 +117,7 @@ async function runPhase3() {
   console.log("=======================================================\n");
 
   if (failedTests > 0) process.exit(1);
+  process.exit(0);
 }
 
 runPhase3().catch((err) => {

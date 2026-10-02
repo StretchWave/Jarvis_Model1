@@ -570,6 +570,52 @@
       animation: pulse-dot 1s ease-in-out infinite;
     }
 
+    .composer-btn.voice-call-btn {
+      color: var(--text-secondary);
+      position: relative;
+    }
+    .composer-btn.voice-call-btn.active {
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      animation: voice-call-pulse 1.8s infinite;
+    }
+    .composer-btn.voice-call-btn.speaking {
+      color: var(--accent);
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+
+    .voice-call-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.28);
+      color: #34d399;
+      letter-spacing: 0.02em;
+    }
+    .voice-call-pill.speaking {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.28);
+      color: var(--accent);
+    }
+    .voice-call-pill.paused {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.28);
+      color: #fbbf24;
+    }
+
+    @keyframes voice-call-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+    }
+
     .composer-btn.stop-speech-btn {
       color: #f43f5e;
       display: none;
@@ -1034,10 +1080,14 @@
         </div>
 
         <!-- Single Contextual Status Indicator -->
-        <div class="topbar-center">
+        <div class="topbar-center" style="display: flex; gap: 8px; align-items: center;">
           <div class="contextual-status" id="contextualStatus">
             <span class="status-dot"></span>
             <span id="statusLabel">Ready</span>
+          </div>
+          <div id="voiceCallStatusBadge" class="voice-call-pill" style="display: none;">
+            <span class="status-dot"></span>
+            <span id="voiceCallText">VOICE LISTENING</span>
           </div>
         </div>
 
@@ -1091,11 +1141,18 @@
           </button>
 
           <!-- Mic Push-To-Talk Button -->
-          <button class="composer-btn mic-btn" id="micBtn" title="Voice input">
+          <button class="composer-btn mic-btn" id="micBtn" title="Push-to-talk voice input">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
               <line x1="12" y1="19" x2="12" y2="22"></line>
+            </svg>
+          </button>
+
+          <!-- Continuous Voice Call Mode Toggle -->
+          <button class="composer-btn voice-call-btn" id="voiceCallBtn" title="Toggle Continuous Voice Call Mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
             </svg>
           </button>
 
@@ -1901,6 +1958,24 @@
         }
       }
 
+      async fetchAudioBuffer(sentence) {
+        try {
+          const res = await fetch("/api/voice/synthesize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: sentence,
+              voice: this.selectedVoice,
+              speed: this.speed,
+            }),
+          });
+          if (res.ok) {
+            return await res.arrayBuffer();
+          }
+        } catch (e) {}
+        return null;
+      }
+
       async speakResponse(text) {
         this.stop();
         const sentences = splitTextIntoSentences(text);
@@ -1910,41 +1985,49 @@
         stateMgr.setState("SPEAKING");
         document.getElementById("stopBtn")?.classList.add("visible");
         setStatus("Speaking", "speaking");
+        if (window.voiceCallSession) {
+          window.voiceCallSession.onJarvisStartSpeaking();
+        }
 
-        for (const sentence of sentences) {
+        // Low-latency lookahead prefetching: fetch sentence[1] while sentence[0] is prepared
+        let nextAudioPromise = null;
+        if (this.neuralAvailable && sentences.length > 1) {
+          nextAudioPromise = this.fetchAudioBuffer(sentences[1]);
+        }
+
+        for (let i = 0; i < sentences.length; i++) {
           if (!this.isSpeaking) break;
-          await this.speakSentence(sentence);
+          const sentence = sentences[i];
+
+          if (this.neuralAvailable) {
+            let arrayBuffer = null;
+            if (i > 0 && nextAudioPromise) {
+              arrayBuffer = await nextAudioPromise;
+            } else {
+              arrayBuffer = await this.fetchAudioBuffer(sentence);
+            }
+
+            // Immediately start prefetching the subsequent sentence while current plays
+            if (i + 1 < sentences.length) {
+              nextAudioPromise = this.fetchAudioBuffer(sentences[i + 1]);
+            } else {
+              nextAudioPromise = null;
+            }
+
+            if (arrayBuffer && this.isSpeaking) {
+              audioEngine.ensureUnlocked();
+              await new Promise(resolve => audioEngine.playAudioBuffer(arrayBuffer, resolve));
+              continue;
+            }
+          }
+
+          // Fallback to browser SpeechSynthesis
+          if (this.isSpeaking) {
+            await this.speakSystemFallback(sentence);
+          }
         }
 
         this.cleanup();
-      }
-
-      async speakSentence(sentence) {
-        audioEngine.ensureUnlocked();
-        if (this.neuralAvailable) {
-          try {
-            const res = await fetch("/api/voice/synthesize", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                text: sentence,
-                voice: this.selectedVoice,
-                speed: this.speed,
-              }),
-            });
-
-            if (res.ok) {
-              const arrayBuffer = await res.arrayBuffer();
-              await new Promise(resolve => {
-                audioEngine.playAudioBuffer(arrayBuffer, resolve);
-              });
-              return;
-            }
-          } catch (e) {}
-        }
-
-        // Fallback to browser SpeechSynthesis
-        await this.speakSystemFallback(sentence);
       }
 
       speakSystemFallback(sentence) {
@@ -1971,6 +2054,9 @@
         if (stateMgr.getState() === "SPEAKING") {
           stateMgr.setState("IDLE");
           setStatus("Ready", "ready");
+        }
+        if (window.voiceCallSession) {
+          window.voiceCallSession.onJarvisDoneSpeaking();
         }
       }
     }
@@ -2040,9 +2126,11 @@
       document.getElementById("diagDesktopBridge").textContent = "Native Electron Window";
     }
 
-    // Escape Key Handler for Popovers and Modals
+    // Escape Key Handler: Emergency Stop for Speech, Popovers, and Modals
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        ttsClient.stop();
+        fetch("/api/voice/stop", { method: "POST" }).catch(() => {});
         closeAllPopovers();
         document.querySelectorAll(".modal-overlay").forEach(m => m.classList.remove("open"));
         document.getElementById("cmdPaletteOverlay")?.classList.remove("open");
@@ -2809,20 +2897,198 @@
     });
 
     // Voice Push-to-Talk via Web Speech API in renderer
-    let speechRecognition = null;
+    // =========================================================================
+    // VOICE CALL & SPEECH RECOGNITION ARCHITECTURE (Priority 3)
+    // =========================================================================
+
+    /**
+     * Continuous Hands-Free Voice Call Session
+     * - Maintains an active, continuous recognition session
+     * - Echo suppression: suppresses microphone transcription while JARVIS speaks ("Do Not Hear JARVIS")
+     * - Barge-in: user speech immediately silences active speech synthesis
+     * - Automatic restart upon silence or disconnect
+     */
+    class ContinuousVoiceSession {
+      constructor(tts, audioEng, states) {
+        this.tts = tts;
+        this.audio = audioEng;
+        this.states = states;
+        this.isActive = false;
+        this.recognition = null;
+        this.restartTimer = null;
+        this.echoCooldownTimer = null;
+        this.isEchoCooldown = false;
+        this.init();
+      }
+
+      init() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          console.warn("SpeechRecognition API not available in this browser");
+          return;
+        }
+
+        this.recognition = new SpeechRec();
+        this.recognition.continuous = true;
+        this.recognition.interimResults = true;
+        this.recognition.lang = "en-US";
+
+        this.recognition.onstart = () => {
+          if (this.isActive && !this.tts.isSpeaking) {
+            this.updateBadge("VOICE LISTENING", "listening");
+            this.states.setState("LISTENING");
+            this.audio.connectMicrophone();
+          }
+        };
+
+        this.recognition.onresult = (e) => {
+          if (!this.isActive) return;
+
+          // Acoustic feedback loop suppression: ignore microphone input if JARVIS is speaking or in echo cooldown
+          if (this.tts.isSpeaking || this.isEchoCooldown) {
+            // Check for barge-in interrupt: if user speaks distinct keywords or multiple words
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+              const text = e.results[i][0].transcript.trim().toLowerCase();
+              if (text.includes("stop") || text.includes("jarvis") || text.includes("pause") || text.split(" ").length >= 2) {
+                // User barged in: abort JARVIS immediately
+                this.tts.stop();
+                fetch("/api/voice/stop", { method: "POST" }).catch(() => {});
+                this.updateBadge("VOICE LISTENING", "listening");
+                this.states.setState("LISTENING");
+                promptInput.value = text;
+                return;
+              }
+            }
+            return; // Suppress echo from JARVIS speakers
+          }
+
+          let interim = "";
+          let finalTranscript = "";
+
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const transcript = e.results[i][0].transcript;
+            if (e.results[i].isFinal) {
+              finalTranscript += transcript;
+            } else {
+              interim += transcript;
+            }
+          }
+
+          if (interim) {
+            promptInput.value = interim;
+          }
+
+          if (finalTranscript.trim()) {
+            promptInput.value = finalTranscript.trim();
+            submitPrompt();
+          }
+        };
+
+        this.recognition.onerror = (e) => {
+          if (e.error === "no-speech" || e.error === "aborted") return;
+          console.warn("Continuous recognition error:", e.error);
+        };
+
+        this.recognition.onend = () => {
+          this.audio.disconnectMicrophone();
+          if (this.isActive && !this.tts.isSpeaking) {
+            clearTimeout(this.restartTimer);
+            this.restartTimer = setTimeout(() => {
+              if (this.isActive && !this.tts.isSpeaking) {
+                try { this.recognition.start(); } catch {}
+              }
+            }, 300);
+          }
+        };
+      }
+
+      start() {
+        if (!this.recognition) return;
+        this.isActive = true;
+        this.audio.ensureUnlocked();
+        document.getElementById("voiceCallBtn")?.classList.add("active");
+        this.updateBadge("VOICE LISTENING", "listening");
+        try { this.recognition.start(); } catch {}
+      }
+
+      stop() {
+        this.isActive = false;
+        clearTimeout(this.restartTimer);
+        clearTimeout(this.echoCooldownTimer);
+        document.getElementById("voiceCallBtn")?.classList.remove("active", "speaking");
+        this.updateBadge("OFF", "off");
+        this.audio.disconnectMicrophone();
+        if (this.states.getState() === "LISTENING") {
+          this.states.setState("IDLE");
+        }
+        if (this.recognition) {
+          try { this.recognition.stop(); } catch {}
+        }
+      }
+
+      toggle() {
+        if (this.isActive) this.stop();
+        else this.start();
+      }
+
+      onJarvisStartSpeaking() {
+        if (!this.isActive) return;
+        this.updateBadge("JARVIS SPEAKING", "speaking");
+        document.getElementById("voiceCallBtn")?.classList.add("speaking");
+      }
+
+      onJarvisDoneSpeaking() {
+        if (!this.isActive) return;
+        document.getElementById("voiceCallBtn")?.classList.remove("speaking");
+        this.updateBadge("VOICE LISTENING", "listening");
+
+        // 350ms acoustic cooldown before listening to prevent capturing trailing speaker echo
+        this.isEchoCooldown = true;
+        clearTimeout(this.echoCooldownTimer);
+        this.echoCooldownTimer = setTimeout(() => {
+          this.isEchoCooldown = false;
+          if (this.isActive && !this.tts.isSpeaking) {
+            try { this.recognition.start(); } catch {}
+          }
+        }, 350);
+      }
+
+      updateBadge(text, mode) {
+        const badge = document.getElementById("voiceCallStatusBadge");
+        const label = document.getElementById("voiceCallText");
+        if (!badge || !label) return;
+        if (mode === "off") {
+          badge.style.display = "none";
+        } else {
+          badge.style.display = "inline-flex";
+          badge.className = `voice-call-pill ${mode}`;
+          label.textContent = text;
+        }
+      }
+    }
+
+    const voiceCallSession = new ContinuousVoiceSession(ttsClient, audioEngine, stateMgr);
+    window.voiceCallSession = voiceCallSession;
+
+    document.getElementById("voiceCallBtn")?.addEventListener("click", () => {
+      voiceCallSession.toggle();
+    });
+
+    // Single-shot Push-to-Talk via Web Speech API in renderer
+    let singleShotRecognition = null;
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRec) {
-      speechRecognition = new SpeechRec();
-      speechRecognition.continuous = false;
-      speechRecognition.interimResults = true;
+      singleShotRecognition = new SpeechRec();
+      singleShotRecognition.continuous = false;
+      singleShotRecognition.interimResults = true;
 
-      speechRecognition.onstart = () => {
+      singleShotRecognition.onstart = () => {
         stateMgr.setState("LISTENING");
         micBtn.classList.add("active");
         audioEngine.connectMicrophone();
       };
 
-      speechRecognition.onresult = (e) => {
+      singleShotRecognition.onresult = (e) => {
         let transcript = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
           transcript += e.results[i][0].transcript;
@@ -2830,7 +3096,7 @@
         promptInput.value = transcript;
       };
 
-      speechRecognition.onend = () => {
+      singleShotRecognition.onend = () => {
         micBtn.classList.remove("active");
         audioEngine.disconnectMicrophone();
         if (stateMgr.getState() === "LISTENING") {
@@ -2842,11 +3108,15 @@
       };
 
       micBtn.addEventListener("click", () => {
+        if (voiceCallSession.isActive) {
+          voiceCallSession.stop();
+          return;
+        }
         if (micBtn.classList.contains("active")) {
-          speechRecognition.stop();
+          singleShotRecognition.stop();
         } else {
           audioEngine.ensureUnlocked();
-          speechRecognition.start();
+          singleShotRecognition.start();
         }
       });
     }
@@ -2874,6 +3144,8 @@
     const cmdPaletteList = document.getElementById("cmdPaletteList");
 
     const COMMANDS = [
+      { id: "toggle-voice-call", title: "Toggle voice call mode", desc: "Start or stop continuous hands-free voice conversation", action: () => voiceCallSession.toggle() },
+      { id: "emergency-stop", title: "Emergency stop (Esc)", desc: "Immediately silence voice playback and halt active speech", action: () => { ttsClient.stop(); fetch("/api/voice/stop", { method: "POST" }).catch(() => {}); } },
       { id: "model-settings", title: "Model settings", desc: "Configure models, variants, and agents", action: () => openSettings("modelsTab") },
       { id: "voice-settings", title: "Voice settings", desc: "Select speech voice and speed", action: () => openSettings("voiceTab") },
       { id: "new-session", title: "New session", desc: "Create a fresh conversation session", action: createNewSession },

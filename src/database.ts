@@ -506,7 +506,13 @@ export class Database {
     stmt.run(id);
   }
 
+  private isClosed = false;
+
   public close(): void {
-    this.db.close();
+    if (this.isClosed) return;
+    this.isClosed = true;
+    try {
+      this.db.close();
+    } catch {}
   }
 }
